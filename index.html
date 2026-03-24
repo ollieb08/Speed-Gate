@@ -4,22 +4,24 @@
     <title>Blake Health & Strength Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 10px; margin: 0; }
-        .tabs { display: flex; background: #1e1e1e; margin-bottom: 15px; border-bottom: 2px solid #333; }
-        .tab { flex: 1; padding: 15px; cursor: pointer; color: #888; font-weight: bold; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #121212; color: white; text-align: center; padding: 10px; margin: 0; }
+        .tabs { display: flex; background: #1e1e1e; margin-bottom: 15px; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 100; }
+        .tab { flex: 1; padding: 15px; cursor: pointer; color: #888; font-weight: bold; transition: 0.3s; }
         .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: #252525; }
         .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .timer { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
+        .timer { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.2); }
         select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; transition: 0.2s; }
+        button:active { transform: scale(0.98); brightness: 0.8; }
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
-        .split-log { color: #aaa; font-size: 0.9rem; margin: 5px 0; text-align: left; background: #151515; padding: 10px; border-radius: 5px; max-height: 120px; overflow-y: auto; }
-        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; font-size: 0.9rem; }
-        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
-        th { background: #252525; color: #00ff00; }
+        .split-log { color: #00ff00; font-size: 1rem; margin: 10px 0; text-align: left; background: #000; padding: 12px; border-radius: 8px; border: 1px solid #222; min-height: 40px; font-family: monospace; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; border-radius: 8px; overflow: hidden; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
+        th { background: #252525; color: #00ff00; font-size: 0.8rem; text-transform: uppercase; }
         .hidden { display: none; }
+        #status { font-size: 0.8rem; margin-top: 10px; color: #888; }
     </style>
 </head>
 <body>
@@ -30,40 +32,50 @@
     </div>
 
     <div class="card">
-        <button class="btn-blue" id="connectBtn" onclick="connectBLE()">CONNECT GATES</button>
+        <button class="btn-blue" id="connectBtn" onclick="connectBLE()">CONNECT TO GATES</button>
         <div id="status">Status: Disconnected ❌</div>
     </div>
 
     <div class="card">
-        <input type="text" id="eventName" placeholder="Event (e.g. 5-10-5, 40yd Dash)">
+        <input type="text" id="eventName" placeholder="Event (e.g. 40yd Dash, 5-10-5)">
+        <label style="display:block; text-align:left; font-size:0.8rem; color:#888;">Select Athlete:</label>
         <select id="athleteSelect"></select>
+        <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
         <input type="text" id="newName" placeholder="New Athlete Name...">
-        <button class="btn-green" onclick="addAthlete()">ADD ATHLETE</button>
+        <button class="btn-green" onclick="addAthlete()">ADD TO ROSTER</button>
     </div>
 
     <div class="card">
         <div id="splitInputArea" class="hidden">
-            <label style="font-size: 0.8rem; color: #888;">Target Gate 1 Breaks:</label>
+            <label style="display:block; text-align:left; font-size:0.8rem; color:#888;">Target Gate Breaks (e.g. 3 for Pro-Agility):</label>
             <input type="number" id="splitTarget" value="2" min="1">
         </div>
         <div class="timer" id="display">0.000</div>
-        <div id="liveSplits" class="split-log">Waiting for start...</div>
-        <button class="btn-red" onclick="resetTimer()">RESET</button>
+        <div id="liveSplits" class="split-log">Ready...</div>
+        <button class="btn-red" onclick="resetTimer()">RESET TIMER</button>
     </div>
 
     <div class="card">
         <strong>Session History</strong>
         <table id="historyTable">
-            <thead><tr><th>Athlete</th><th>Event</th><th>Result</th></tr></thead>
+            <thead>
+                <tr>
+                    <th>Athlete</th>
+                    <th>Event</th>
+                    <th>Result</th>
+                </tr>
+            </thead>
             <tbody></tbody>
         </table>
+        <button style="background:none; color:#555; font-size:0.7rem; margin-top:10px;" onclick="clearHistory()">Clear History Display</button>
     </div>
 
     <script>
-        let startTime, lastSplitTime, timerInterval, mode = 'standard', splitTimes = [];
+        let startTime, timerInterval, mode = 'standard', splitTimes = [];
         let roster = JSON.parse(localStorage.getItem('roster')) || [];
-        // YOUR LIVE GOOGLE SCRIPT URL
-        const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwjJAZM4465OhdasYm_3MPRZ31oYwANCNrRMsUGvlb-k5vDaCz2iGPHBNYWEMnZideX/exec";
+        
+        // IMPORTANT: Replace this with your Google Web App URL
+        const SHEETS_URL = "https://script.google.com/macros/s/YOUR_ACTUAL_ID/exec";
 
         function switchMode(newMode) {
             mode = newMode;
@@ -95,78 +107,88 @@
                     filters: [{ name: 'Blake_SpeedGate' }],
                     optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
                 });
+                
+                document.getElementById('status').innerHTML = "Status: Pairing... ⏳";
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
                 const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 
-                char.startNotifications();
+                await char.startNotifications();
                 char.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
                     handleTrigger(val);
                 });
+
                 document.getElementById('status').innerHTML = "Status: Connected ✅";
-                document.getElementById('connectBtn').style.display = 'none';
-            } catch (err) { alert("Bluetooth Connection Failed: " + err); }
+                document.getElementById('connectBtn').classList.add('hidden');
+                
+                device.addEventListener('gattserverdisconnected', () => {
+                    document.getElementById('status').innerHTML = "Status: Disconnected ❌";
+                    document.getElementById('connectBtn').classList.remove('hidden');
+                });
+            } catch (err) { 
+                alert("Connect Error: Ensure Bluetooth & Location are ON. " + err.message); 
+            }
         }
 
         function handleTrigger(gate) {
-            let now = performance.now();
-            
             if (!startTime) {
-                // TIMER START
-                startTime = now;
-                lastSplitTime = now;
-                document.getElementById('liveSplits').innerHTML = "🏃 Timer Active...";
+                // START TIMER
+                startTime = performance.now();
+                document.getElementById('liveSplits').innerHTML = "🏃 RUNNING...";
                 timerInterval = setInterval(() => {
-                    // Show time since the LAST trigger (Lap Time)
-                    document.getElementById('display').innerHTML = ((performance.now() - lastSplitTime) / 1000).toFixed(3);
+                    document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
                 }, 10);
             } else {
-                // BEAM BROKEN
-                let totalElapsed = (now - startTime) / 1000;
-                let lapTime = (now - lastSplitTime) / 1000;
-                
+                // HANDLE SPLITS OR FINISH
+                let now = performance.now();
+                let splitTime = ((now - startTime) / 1000).toFixed(3);
+
                 if (mode === 'standard' && gate === "GATE2") {
-                    stopTimer(totalElapsed.toFixed(3));
+                    stopTimer(splitTime);
                 } else if (mode === 'splits') {
-                    lastSplitTime = now; // RESTART visual timer for next lap
-                    splitTimes.push(lapTime.toFixed(3));
-                    document.getElementById('liveSplits').innerHTML += `<br>Lap ${splitTimes.length}: ${lapTime.toFixed(3)}s (Total: ${totalElapsed.toFixed(3)}s)`;
+                    // Debounce: prevent same crossing counting twice in 0.5s
+                    if (splitTimes.length > 0 && (parseFloat(splitTime) - parseFloat(splitTimes[splitTimes.length-1]) < 0.5)) return;
+                    
+                    splitTimes.push(splitTime);
+                    document.getElementById('liveSplits').innerHTML = splitTimes.map((s, i) => `Split ${i+1}: ${s}s`).join('<br>');
                     
                     if (splitTimes.length >= parseInt(document.getElementById('splitTarget').value)) {
-                        stopTimer(totalElapsed.toFixed(3));
+                        stopTimer(splitTime);
                     }
                 }
             }
         }
 
-        function stopTimer(finalTotal) {
+        function stopTimer(finalTime) {
             clearInterval(timerInterval);
-            document.getElementById('display').innerHTML = finalTotal;
-            
             const athlete = document.getElementById('athleteSelect').value || "Unknown";
-            const event = document.getElementById('eventName').value || "Sprint";
-            const resultText = mode === 'splits' ? `${finalTotal}s (Laps: ${splitTimes.join('/')})` : `${finalTotal}s`;
+            const event = document.getElementById('eventName').value || "General";
             
-            // Add to Local Table
+            // Format for display
+            const displayResult = mode === 'splits' ? `${finalTime}s (Splits: ${splitTimes.join(' / ')})` : `${finalTime}s`;
+            
+            // Add to Table (Top of list)
             const tbody = document.querySelector('#historyTable tbody');
             const row = tbody.insertRow(0);
-            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${resultText}</td>`;
+            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${displayResult}</td>`;
 
             // Send to Google Sheets
-            const splitsParam = splitTimes.length > 0 ? splitTimes.join('|') : "";
-            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTotal}&splits=${splitsParam}`)
-                .then(res => console.log("Data logged to Sheets"))
-                .catch(err => console.error("Sheets Error:", err));
+            const splitsData = splitTimes.join('|');
+            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${splitsData}`)
+            .catch(err => console.log("Sheets sync failed (Normal if URL not set)"));
         }
 
         function resetTimer() {
             startTime = null;
-            lastSplitTime = null;
             splitTimes = [];
             clearInterval(timerInterval);
             document.getElementById('display').innerHTML = "0.000";
-            document.getElementById('liveSplits').innerHTML = "Waiting for start...";
+            document.getElementById('liveSplits').innerHTML = "Ready...";
+        }
+
+        function clearHistory() {
+            document.querySelector('#historyTable tbody').innerHTML = "";
         }
     </script>
 </body>
