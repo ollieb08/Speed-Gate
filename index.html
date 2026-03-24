@@ -1,68 +1,109 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Blake Speed Timer</title>
+    <title>Blake Health & Strength Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; }
-        .timer { font-size: 5rem; color: #00ff00; margin: 20px; }
-        button { padding: 20px; width: 80%; margin: 10px; border-radius: 10px; font-weight: bold; }
-        .log { background: #1e1e1e; padding: 10px; margin: 10px; border-radius: 8px; text-align: left; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; margin: 0; }
+        .tabs { display: flex; background: #1e1e1e; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 100; }
+        .tab { flex: 1; padding: 15px; cursor: pointer; color: #888; font-weight: bold; font-size: 0.9rem; }
+        .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: rgba(255,255,255,0.05); }
+        
+        .page { display: none; padding: 10px; }
+        .page.active { display: block; }
+
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; }
+        .timer { font-size: 5.5rem; font-weight: bold; color: #00ff00; font-family: monospace; line-height: 1; margin: 10px 0; }
+        
+        input, select { width: 100%; padding: 14px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; padding: 16px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 5px 0; font-size: 1rem; }
+        
+        .pb-display { font-size: 0.9rem; color: #aaa; margin-top: 5px; }
+        .last-run { font-size: 1.1rem; color: #00ff00; background: #000; padding: 10px; border-radius: 8px; margin: 10px 0; border: 1px solid #222; }
+        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #333; }
+        .btn-del { background: #ff4444; width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; }
     </style>
 </head>
 <body>
-    <h1>Gate Control</h1>
-    <button style="background: #007bff; color: white;" onclick="connect()">CONNECT GATES</button>
-    <div id="status">Status: Disconnected</div>
-    <div class="timer" id="display">0.000</div>
-    <div id="log" class="log">Waiting...</div>
-    <button style="background: #ff4444; color: white;" onclick="reset()">RESET</button>
+
+    <div class="tabs">
+        <div class="tab active" onclick="showPage('timerPage', this)">TIMER</div>
+        <div class="tab" onclick="showPage('pbPage', this)">PB'S</div>
+        <div class="tab" onclick="showPage('settingsPage', this)">SETTINGS</div>
+    </div>
+
+    <div id="timerPage" class="page active">
+        <div class="card">
+            <input type="text" id="eventName" placeholder="Event (e.g. 40yd Dash)" oninput="updatePBDisplay()">
+            <select id="athleteSelect" onchange="updatePBDisplay()"></select>
+            <div class="pb-display">Current Event PB: <span id="currentPB" style="color:#00ff00; font-weight:bold;">--</span></div>
+        </div>
+        
+        <div class="card">
+            <div class="timer" id="display">0.000</div>
+            <div id="lastRunBox" class="last-run" style="display:none;"></div>
+            <button style="background:#ff4444; color:white; font-size:1.2rem;" onclick="resetTimer()">RESET TIMER</button>
+        </div>
+    </div>
+
+    <div id="pbPage" class="page">
+        <div class="card" style="text-align: left;">
+            <h2 style="margin-top:0;">Personal Bests</h2>
+            <div id="pbList"></div>
+        </div>
+    </div>
+
+    <div id="settingsPage" class="page">
+        <div class="card">
+            <button id="connectBtn" style="background:#007bff; color:white;" onclick="connectBLE()">CONNECT TO GATES</button>
+            <div id="status" style="font-size:0.8rem; margin-top:8px; color:#888;">Disconnected ❌</div>
+        </div>
+        <div class="card" style="text-align: left;">
+            <strong style="display:block; margin-bottom:10px;">Roster Management</strong>
+            <input type="text" id="newName" placeholder="Enter Athlete Name">
+            <button style="background:#28a745; color:white;" onclick="addAthlete()">ADD TO ROSTER</button>
+            <div id="rosterList" style="margin-top:15px;"></div>
+        </div>
+        <div style="padding:20px; color:#555; font-size:0.7rem;">
+            Blake Health & Strength v2.1
+        </div>
+    </div>
 
     <script>
-        let startTime, interval;
+        let startTime, timerInterval, roster = JSON.parse(localStorage.getItem('roster')) || [];
+        let pbs = JSON.parse(localStorage.getItem('pbs')) || {}; 
         
-        async function connect() {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Blake_SpeedGate' }],
-                optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
-            });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
-            const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
-            
-            await char.startNotifications();
-            char.addEventListener('characteristicvaluechanged', (e) => {
-                const val = new TextDecoder().decode(e.target.value);
-                if (val === "GATE1" && !startTime) {
-                    start();
-                } else if (val === "GATE2" && startTime) {
-                    stop();
-                }
-            });
-            document.getElementById('status').innerText = "Status: Connected ✅";
+        const SHEETS_URL = "YOUR_SHEETS_URL";
+
+        function showPage(pageId, tabEl) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.getElementById(pageId).classList.add('active');
+            tabEl.classList.add('active');
+            if(pageId === 'pbPage') renderPBs();
+            if(pageId === 'settingsPage') renderRoster();
         }
 
-        function start() {
-            startTime = performance.now();
-            document.getElementById('log').innerText = "Started!";
-            interval = setInterval(() => {
-                document.getElementById('display').innerText = ((performance.now() - startTime) / 1000).toFixed(3);
-            }, 10);
+        function renderRoster() {
+            const list = document.getElementById('rosterList');
+            list.innerHTML = roster.map((name, i) => `
+                <div class="roster-item">
+                    <span>${name}</span>
+                    <button class="btn-del" onclick="deleteAthlete(${i})">DELETE</button>
+                </div>
+            `).join('');
+            updateRosterSelect();
         }
 
-        function stop() {
-            clearInterval(interval);
-            const final = ((performance.now() - startTime) / 1000).toFixed(3);
-            document.getElementById('log').innerText = "Finished: " + final + "s";
-            startTime = null;
+        function deleteAthlete(index) {
+            if(confirm("Delete this athlete?")) {
+                roster.splice(index, 1);
+                localStorage.setItem('roster', JSON.stringify(roster));
+                renderRoster();
+            }
         }
 
-        function reset() {
-            clearInterval(interval);
-            startTime = null;
-            document.getElementById('display').innerText = "0.000";
-            document.getElementById('log').innerText = "Ready...";
-        }
-    </script>
-</body>
-</html>
+        function updateRosterSelect() {
+            const select = document.getElementById('athleteSelect');
+            const currentVal = select.value;
+            select.innerHTML = roster.map(name => `<option value="${name}">${name}</option>`).join('');
