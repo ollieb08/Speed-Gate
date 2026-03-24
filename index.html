@@ -132,6 +132,7 @@
         }
 
         function handleTrigger(gate) {
+            alert("Phone received: " + gate); // <--- ADD THIS TEMP LINE
             if (!startTime) {
                 // START TIMER
                 startTime = performance.now();
