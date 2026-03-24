@@ -11,11 +11,11 @@
         .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
         .timer { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
         select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
-        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; transition: 0.2s; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; }
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
-        .split-log { color: #aaa; font-size: 0.9rem; margin: 5px 0; text-align: left; background: #151515; padding: 10px; border-radius: 5px; }
+        .split-log { color: #aaa; font-size: 0.9rem; margin: 5px 0; text-align: left; background: #151515; padding: 10px; border-radius: 5px; max-height: 100px; overflow-y: auto; }
         table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; }
         th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #00ff00; }
@@ -35,7 +35,7 @@
     </div>
 
     <div class="card">
-        <input type="text" id="eventName" placeholder="Event (e.g. 40yd Dash, 5-10-5)">
+        <input type="text" id="eventName" placeholder="Event (e.g. Pro Agility, 5-10-5)">
         <select id="athleteSelect"></select>
         <input type="text" id="newName" placeholder="New Athlete Name...">
         <button class="btn-green" onclick="addAthlete()">ADD ATHLETE</button>
@@ -43,7 +43,7 @@
 
     <div class="card">
         <div id="splitInputArea" class="hidden">
-            <label>How many splits? (Target Gate 1 breaks)</label>
+            <label>Target Gate 1 breaks (e.g. 3 for Pro-Agility):</label>
             <input type="number" id="splitTarget" value="2" min="1">
         </div>
         <div class="timer" id="display">0.000</div>
@@ -60,9 +60,9 @@
     </div>
 
     <script>
-        let startTime, timerInterval, mode = 'standard', splitTimes = [];
+        let startTime, lastSplitTime, timerInterval, mode = 'standard', splitTimes = [];
         let roster = JSON.parse(localStorage.getItem('roster')) || [];
-        const SHEETS_URL = "https://script.google.com/macros/s/AKfycbwjJAZM4465OhdasYm_3MPRZ31oYwANCNrRMsUGvlb-k5vDaCz2iGPHBNYWEMnZideX/exec";
+        const SHEETS_URL = "PASTE_YOUR_NEW_URL_HERE";
 
         function switchMode(newMode) {
             mode = newMode;
@@ -105,50 +105,59 @@
                 });
                 document.getElementById('status').innerHTML = "Status: Connected ✅";
                 document.getElementById('connectBtn').classList.add('hidden');
-            } catch (err) { alert("Enable Bluetooth & Location: " + err); }
+            } catch (err) { alert("Bluetooth Error: " + err); }
         }
 
         function handleTrigger(gate) {
+            let now = performance.now();
+            
             if (!startTime) {
-                startTime = performance.now();
+                // STARTING THE TIMER
+                startTime = now;
+                lastSplitTime = now;
                 document.getElementById('liveSplits').innerHTML = "🏃 Running...";
                 timerInterval = setInterval(() => {
-                    document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
+                    // Show time since LAST split (The "Lap" time)
+                    document.getElementById('display').innerHTML = ((performance.now() - lastSplitTime) / 1000).toFixed(3);
                 }, 10);
             } else {
-                let now = performance.now();
-                let splitTime = ((now - startTime) / 1000).toFixed(3);
+                // HANDLING A BEAM BREAK
+                let totalElapsed = (now - startTime) / 1000;
+                let lapTime = (now - lastSplitTime) / 1000;
+                lastSplitTime = now; // Reset the lap anchor to "now"
 
                 if (mode === 'standard' && gate === "GATE2") {
-                    stopTimer(splitTime);
+                    stopTimer(totalElapsed.toFixed(3));
                 } else if (mode === 'splits') {
-                    splitTimes.push(splitTime);
-                    document.getElementById('liveSplits').innerHTML += `<br>Split ${splitTimes.length}: ${splitTime}s`;
+                    splitTimes.push(lapTime.toFixed(3));
+                    document.getElementById('liveSplits').innerHTML += `<br>Lap ${splitTimes.length}: ${lapTime.toFixed(3)}s (Total: ${totalElapsed.toFixed(3)}s)`;
+                    
                     if (splitTimes.length >= parseInt(document.getElementById('splitTarget').value)) {
-                        stopTimer(splitTime);
+                        stopTimer(totalElapsed.toFixed(3));
                     }
                 }
             }
         }
 
-        function stopTimer(finalTime) {
+        function stopTimer(finalTotal) {
             clearInterval(timerInterval);
-            const athlete = document.getElementById('athleteSelect').value;
-            const event = document.getElementById('eventName').value || "General Drill";
-            const resultText = mode === 'splits' ? `Final: ${finalTime}s (${splitTimes.join('/')})` : `${finalTime}s`;
+            document.getElementById('display').innerHTML = finalTotal;
             
-            // Add to Table
+            const athlete = document.getElementById('athleteSelect').value;
+            const event = document.getElementById('eventName').value || "Drill";
+            const resultText = mode === 'splits' ? `${finalTotal}s (Laps: ${splitTimes.join('/')})` : `${finalTotal}s`;
+            
             const tbody = document.querySelector('#historyTable tbody');
             const row = tbody.insertRow(0);
             row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${resultText}</td>`;
 
-            // Send to Sheets
             const splitsParam = splitTimes.length > 0 ? splitTimes.join('|') : "";
-            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${splitsParam}`);
+            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTotal}&splits=${splitsParam}`);
         }
 
         function resetTimer() {
             startTime = null;
+            lastSplitTime = null;
             splitTimes = [];
             clearInterval(timerInterval);
             document.getElementById('display').innerHTML = "0.000";
