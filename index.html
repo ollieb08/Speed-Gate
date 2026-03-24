@@ -1,56 +1,77 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Blake Health & Strength Timer</title>
+    <title>Blake Health & Strength Pro</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
-        .card { background: #1e1e1e; padding: 20px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #333; }
-        select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 1rem; box-sizing: border-box; }
-        .timer { font-size: 4.5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; }
-        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 10px; margin: 0; }
+        .tabs { display: flex; background: #1e1e1e; margin-bottom: 15px; border-bottom: 2px solid #333; }
+        .tab { flex: 1; padding: 15px; cursor: pointer; color: #888; font-weight: bold; }
+        .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: #252525; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .timer { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
+        select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; transition: 0.2s; }
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
-        table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 0.9rem; }
-        th, td { border: 1px solid #444; padding: 8px; text-align: center; }
+        .split-log { color: #aaa; font-size: 0.9rem; margin: 5px 0; text-align: left; background: #151515; padding: 10px; border-radius: 5px; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; }
+        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
+        th { background: #252525; color: #00ff00; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
-    <h2>Blake Health & Strength</h2>
-    
+
+    <div class="tabs">
+        <div id="tab1" class="tab active" onclick="switchMode('standard')">2 GATES</div>
+        <div id="tab2" class="tab" onclick="switchMode('splits')">SPLITS MODE</div>
+    </div>
+
     <div class="card">
         <button class="btn-blue" id="connectBtn" onclick="connectBLE()">CONNECT GATES</button>
-        <div id="status">Status: Disconnected</div>
+        <div id="status">Status: Disconnected ❌</div>
     </div>
 
     <div class="card">
-        <label>Select Athlete:</label>
+        <input type="text" id="eventName" placeholder="Event (e.g. 40yd Dash, 5-10-5)">
         <select id="athleteSelect"></select>
-        <input type="text" id="newName" placeholder="Add New Athlete Name...">
-        <button class="btn-green" onclick="addAthlete()">ADD TO ROSTER</button>
+        <input type="text" id="newName" placeholder="New Athlete Name...">
+        <button class="btn-green" onclick="addAthlete()">ADD ATHLETE</button>
     </div>
 
     <div class="card">
-        <label>Target Splits (0 = Use Gate 2):</label>
-        <input type="number" id="splitTarget" value="0" min="0">
+        <div id="splitInputArea" class="hidden">
+            <label>How many splits? (Target Gate 1 breaks)</label>
+            <input type="number" id="splitTarget" value="2" min="1">
+        </div>
         <div class="timer" id="display">0.000</div>
-        <button class="btn-red" onclick="resetTimer()">RESET TIMER</button>
+        <div id="liveSplits" class="split-log">Waiting for start...</div>
+        <button class="btn-red" onclick="resetTimer()">RESET</button>
     </div>
 
     <div class="card">
-        <strong>Recent Runs</strong>
+        <strong>Session History</strong>
         <table id="historyTable">
-            <tr><th>Name</th><th>Time</th></tr>
+            <thead><tr><th>Athlete</th><th>Event</th><th>Result</th></tr></thead>
+            <tbody></tbody>
         </table>
     </div>
 
     <script>
-        let startTime, timerInterval, currentSplits = 0;
+        let startTime, timerInterval, mode = 'standard', splitTimes = [];
         let roster = JSON.parse(localStorage.getItem('roster')) || [];
         const SHEETS_URL = "https://script.google.com/macros/s/AKfycb...YOUR_ID.../exec";
 
-        // Load Roster on Start
+        function switchMode(newMode) {
+            mode = newMode;
+            document.getElementById('tab1').className = mode === 'standard' ? 'tab active' : 'tab';
+            document.getElementById('tab2').className = mode === 'splits' ? 'tab active' : 'tab';
+            document.getElementById('splitInputArea').className = mode === 'splits' ? '' : 'hidden';
+            resetTimer();
+        }
+
         function updateRosterUI() {
             const select = document.getElementById('athleteSelect');
             select.innerHTML = roster.map(name => `<option value="${name}">${name}</option>`).join('');
@@ -80,47 +101,58 @@
                 char.startNotifications();
                 char.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    const target = parseInt(document.getElementById('splitTarget').value);
-                    
-                    if (!startTime) {
-                        startTime = performance.now();
-                        timerInterval = setInterval(() => {
-                            document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
-                        }, 10);
-                    } else {
-                        let time = (performance.now() - startTime) / 1000;
-                        if (target > 0) { // Split Mode
-                            currentSplits++;
-                            if (currentSplits >= target) stopTimer(time);
-                        } else if (val === "GATE2") { // Standard Mode
-                            stopTimer(time);
-                        }
-                    }
+                    handleTrigger(val);
                 });
                 document.getElementById('status').innerHTML = "Status: Connected ✅";
-                document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { alert("Connection failed: " + err); }
+                document.getElementById('connectBtn').classList.add('hidden');
+            } catch (err) { alert("Enable Bluetooth & Location: " + err); }
+        }
+
+        function handleTrigger(gate) {
+            if (!startTime) {
+                startTime = performance.now();
+                document.getElementById('liveSplits').innerHTML = "🏃 Running...";
+                timerInterval = setInterval(() => {
+                    document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
+                }, 10);
+            } else {
+                let now = performance.now();
+                let splitTime = ((now - startTime) / 1000).toFixed(3);
+
+                if (mode === 'standard' && gate === "GATE2") {
+                    stopTimer(splitTime);
+                } else if (mode === 'splits') {
+                    splitTimes.push(splitTime);
+                    document.getElementById('liveSplits').innerHTML += `<br>Split ${splitTimes.length}: ${splitTime}s`;
+                    if (splitTimes.length >= parseInt(document.getElementById('splitTarget').value)) {
+                        stopTimer(splitTime);
+                    }
+                }
+            }
         }
 
         function stopTimer(finalTime) {
             clearInterval(timerInterval);
             const athlete = document.getElementById('athleteSelect').value;
+            const event = document.getElementById('eventName').value || "General Drill";
+            const resultText = mode === 'splits' ? `Final: ${finalTime}s (${splitTimes.join('/')})` : `${finalTime}s`;
             
             // Add to Table
-            const table = document.getElementById('historyTable');
-            const row = table.insertRow(1);
-            row.insertCell(0).innerHTML = athlete;
-            row.insertCell(1).innerHTML = finalTime.toFixed(3);
+            const tbody = document.querySelector('#historyTable tbody');
+            const row = tbody.insertRow(0);
+            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${resultText}</td>`;
 
             // Send to Sheets
-            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&time=${finalTime.toFixed(3)}`);
+            const splitsParam = splitTimes.length > 0 ? splitTimes.join('|') : "";
+            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${splitsParam}`);
         }
 
         function resetTimer() {
             startTime = null;
-            currentSplits = 0;
+            splitTimes = [];
             clearInterval(timerInterval);
             document.getElementById('display').innerHTML = "0.000";
+            document.getElementById('liveSplits').innerHTML = "Waiting for start...";
         }
     </script>
 </body>
