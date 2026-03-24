@@ -1,95 +1,119 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>SpeedGate Pro Control</title>
+    <title>Blake Health & Strength Timer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-        .card { background: #1e1e1e; padding: 20px; border-radius: 15px; margin-bottom: 20px; border: 1px solid #333; }
-        select, input { width: 100%; padding: 12px; margin: 10px 0; border-radius: 8px; border: none; font-size: 1rem; }
-        .timer { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; }
-        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1.1rem; cursor: pointer; }
-        .btn-connect { background: #007bff; color: white; }
-        .btn-reset { background: #ff4444; color: white; margin-top: 10px; }
-        #log { text-align: left; font-family: monospace; font-size: 0.9rem; color: #aaa; margin-top: 15px; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 15px; margin-bottom: 15px; border: 1px solid #333; }
+        select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: none; font-size: 1rem; box-sizing: border-box; }
+        .timer { font-size: 4.5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; }
+        .btn-blue { background: #007bff; color: white; }
+        .btn-red { background: #ff4444; color: white; }
+        .btn-green { background: #28a745; color: white; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; font-size: 0.9rem; }
+        th, td { border: 1px solid #444; padding: 8px; text-align: center; }
     </style>
 </head>
 <body>
-    <h2>SpeedGate Pro</h2>
+    <h2>Blake Health & Strength</h2>
     
     <div class="card">
-        <button class="btn-connect" onclick="connectBLE()">CONNECT TO GATES</button>
-        <select id="athlete">
-            <option>Select Athlete...</option>
-            <option>William Blake</option>
-            <option>Jessica Blake</option>
-        </select>
-        <label>Number of Splits (Single Gate):</label>
-        <input type="number" id="splitTarget" value="0" min="0">
+        <button class="btn-blue" id="connectBtn" onclick="connectBLE()">CONNECT GATES</button>
+        <div id="status">Status: Disconnected</div>
     </div>
 
     <div class="card">
+        <label>Select Athlete:</label>
+        <select id="athleteSelect"></select>
+        <input type="text" id="newName" placeholder="Add New Athlete Name...">
+        <button class="btn-green" onclick="addAthlete()">ADD TO ROSTER</button>
+    </div>
+
+    <div class="card">
+        <label>Target Splits (0 = Use Gate 2):</label>
+        <input type="number" id="splitTarget" value="0" min="0">
         <div class="timer" id="display">0.000</div>
-        <div id="log">Logs:<br></div>
-        <button class="btn-reset" onclick="resetTimer()">RESET</button>
+        <button class="btn-red" onclick="resetTimer()">RESET TIMER</button>
+    </div>
+
+    <div class="card">
+        <strong>Recent Runs</strong>
+        <table id="historyTable">
+            <tr><th>Name</th><th>Time</th></tr>
+        </table>
     </div>
 
     <script>
         let startTime, timerInterval, currentSplits = 0;
-        const SHEETS_URL = "https://script.google.com/macros/s/AKfycbyIm2TwOxITXUkLSysGiRvGwx_ld1-52DZcpVf6Lm2bLFuLH2plTHk4F66TVNkBip8/exec
-          ";
+        let roster = JSON.parse(localStorage.getItem('roster')) || [];
+        const SHEETS_URL = "https://script.google.com/macros/s/AKfycb...YOUR_ID.../exec";
 
-        async function connectBLE() {
-            const device = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'Blake_SpeedGate' }],
-                optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
-            });
-            const server = await device.gatt.connect();
-            const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
-            const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
-            
-            char.startNotifications();
-            char.addEventListener('characteristicvaluechanged', handleData);
-            alert("Connected to Gates!");
+        // Load Roster on Start
+        function updateRosterUI() {
+            const select = document.getElementById('athleteSelect');
+            select.innerHTML = roster.map(name => `<option value="${name}">${name}</option>`).join('');
         }
+        updateRosterUI();
 
-        function handleData(event) {
-            const val = new TextDecoder().decode(event.target.value);
-            const target = parseInt(document.getElementById('splitTarget').value);
-
-            if (!startTime) {
-                startTimer();
-                log("RUN STARTED");
-            } else {
-                let time = (performance.now() - startTime) / 1000;
-                if (target > 0 && currentSplits < target) {
-                    currentSplits++;
-                    log(`SPLIT ${currentSplits}: ${time.toFixed(3)}s`);
-                    if (currentSplits === target) stopTimer(time);
-                } else if (target === 0 && val === "GATE2") {
-                    stopTimer(time);
-                }
+        function addAthlete() {
+            const name = document.getElementById('newName').value.trim();
+            if (name && !roster.includes(name)) {
+                roster.push(name);
+                localStorage.setItem('roster', JSON.stringify(roster));
+                updateRosterUI();
+                document.getElementById('newName').value = "";
             }
         }
 
-        function startTimer() {
-            startTime = performance.now();
-            timerInterval = setInterval(() => {
-                document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
-            }, 10);
+        async function connectBLE() {
+            try {
+                const device = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'Blake_SpeedGate' }],
+                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
+                });
+                const server = await device.gatt.connect();
+                const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
+                const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+                
+                char.startNotifications();
+                char.addEventListener('characteristicvaluechanged', (e) => {
+                    const val = new TextDecoder().decode(e.target.value);
+                    const target = parseInt(document.getElementById('splitTarget').value);
+                    
+                    if (!startTime) {
+                        startTime = performance.now();
+                        timerInterval = setInterval(() => {
+                            document.getElementById('display').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
+                        }, 10);
+                    } else {
+                        let time = (performance.now() - startTime) / 1000;
+                        if (target > 0) { // Split Mode
+                            currentSplits++;
+                            if (currentSplits >= target) stopTimer(time);
+                        } else if (val === "GATE2") { // Standard Mode
+                            stopTimer(time);
+                        }
+                    }
+                });
+                document.getElementById('status').innerHTML = "Status: Connected ✅";
+                document.getElementById('connectBtn').style.display = "none";
+            } catch (err) { alert("Connection failed: " + err); }
         }
 
         function stopTimer(finalTime) {
             clearInterval(timerInterval);
-            log(`FINAL TIME: ${finalTime.toFixed(3)}s`);
-            saveToSheets(finalTime);
-        }
+            const athlete = document.getElementById('athleteSelect').value;
+            
+            // Add to Table
+            const table = document.getElementById('historyTable');
+            const row = table.insertRow(1);
+            row.insertCell(0).innerHTML = athlete;
+            row.insertCell(1).innerHTML = finalTime.toFixed(3);
 
-        function log(msg) { document.getElementById('log').innerHTML += "> " + msg + "<br>"; }
-
-        function saveToSheets(time) {
-            const name = document.getElementById('athlete').value;
-            fetch(`${SHEETS_URL}?athlete=${name}&time=${time.toFixed(3)}`);
+            // Send to Sheets
+            fetch(`${SHEETS_URL}?athlete=${encodeURIComponent(athlete)}&time=${finalTime.toFixed(3)}`);
         }
 
         function resetTimer() {
