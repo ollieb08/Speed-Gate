@@ -1,159 +1,95 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Blake Health & Strength Pro</title>
+    <title>Blake Health & Strength Timer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding-bottom: 20px; }
-        
-        /* Navigation Tabs */
-        .tabs { display: flex; background: #1e1e1e; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 1000; }
-        .tab { flex: 1; padding: 15px 5px; cursor: pointer; color: #888; font-weight: bold; font-size: 0.85rem; transition: 0.2s; }
-        .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: rgba(0,255,0,0.05); }
-        
-        /* Page Control */
-        .page { display: none; padding: 15px; max-width: 600px; margin: 0 auto; }
-        .page.active { display: block; }
-
-        /* UI Components */
-        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
-        .timer { font-size: 5.5rem; font-weight: bold; color: #00ff00; font-family: monospace; line-height: 1; margin: 10px 0; }
-        
-        input, select { width: 100%; padding: 14px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
-        button { width: 100%; padding: 16px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 8px 0; font-size: 1rem; transition: 0.2s; }
-        button:active { transform: scale(0.98); opacity: 0.8; }
-        
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 10px; margin: 0; }
+        .header { padding: 20px; background: #1e1e1e; border-bottom: 2px solid #00ff00; margin-bottom: 10px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .big-metric { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
+        select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
+        button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; transition: 0.2s; }
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
-        .btn-dark { background: #333; color: white; border: 1px solid #555; }
-        
-        .mode-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
-        .mode-toggle button { margin: 0; padding: 12px; font-size: 0.9rem; }
-        
-        .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #333; font-size: 0.9rem; margin-top: 10px; }
-        .status-connected { background: rgba(0, 255, 0, 0.2); color: #00ff00; border: 1px solid #00ff00; }
-        
-        .last-run { font-size: 1.1rem; color: #00ff00; background: #000; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; font-weight: bold; }
-        .split-log { color: #aaa; font-size: 1rem; margin: 10px 0; text-align: left; background: #0a0a0a; padding: 12px; border-radius: 8px; font-family: monospace; border: 1px solid #222; }
-        
-        .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #333; text-align: left; }
-        .btn-del { background: #ff4444; width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; color: white; border-radius: 6px; }
-        
-        h2 { margin-top: 0; color: #00ff00; text-transform: uppercase; letter-spacing: 1px; font-size: 1.2rem; }
-        .section-label { text-align: left; font-size: 0.85rem; color: #aaa; text-transform: uppercase; margin-top: 15px; display: block; }
+        .section-label { display: block; text-align: left; font-size: 0.8rem; color: #888; margin-top: 10px; }
+        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; font-size: 0.8rem;}
+        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
+        th { background: #252525; color: #00ff00; }
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="tabs">
-        <div id="tab-home" class="tab active" onclick="navTo('home')">HOME</div>
-        <div id="tab-timer" class="tab" onclick="navTo('timer')">TIMER</div>
-        <div id="tab-pb" class="tab" onclick="navTo('pb')">PB'S</div>
-        <div id="tab-settings" class="tab" onclick="navTo('settings')">SETTINGS</div>
+    <div class="header">
+        <h2 style="margin:0;">Blake Health & Strength</h2>
     </div>
 
-    <div id="page-home" class="page active">
-        <div class="card" style="padding: 40px 20px;">
-            <h1 style="margin: 0 0 10px 0; font-size: 1.8rem;">Blake Health & Strength</h1>
-            <p style="color: #888; margin-bottom: 30px;">Timing & Performance Tracking</p>
-            
-            <button class="btn-blue" style="font-size: 1.2rem; padding: 20px;" onclick="connectBLE()">📡 CONNECT TO GATES</button>
-            <div id="homeStatus" class="status-badge">Disconnected ❌</div>
-        </div>
-    </div>
-
-    <div id="page-timer" class="page">
-        <div class="card">
-            <input type="text" id="eventName" placeholder="Event (e.g. 5-10-5 Shuttle)" oninput="updatePBDisplay()">
-            <select id="athleteSelect" onchange="updatePBDisplay()"></select>
-            <div style="font-size: 0.9rem; color: #aaa; margin-top: 5px;">Current Event PB: <span id="currentPB" style="color:#00ff00; font-weight:bold;">--</span></div>
-        </div>
+    <div class="card">
+        <label class="section-label">Google Sheets Web App URL</label>
+        <input type="text" id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/..." onchange="saveSettings()">
         
-        <div class="card">
-            <div class="mode-toggle">
-                <button id="btnStandard" class="btn-blue" onclick="setTimerMode('standard')">Standard (2 Gates)</button>
-                <button id="btnSplits" class="btn-dark" onclick="setTimerMode('splits')">Splits (1 Gate)</button>
-            </div>
-            
-            <div id="splitsSetup" style="display: none; text-align: left; margin-top: 10px;">
-                <label style="font-size: 0.85rem; color: #aaa;">Target Laps/Breaks:</label>
-                <input type="number" id="targetSplits" value="3" min="1" style="margin-top: 4px;">
-            </div>
-
-            <div class="timer" id="display">0.000</div>
-            
-            <div id="liveSplits" class="split-log" style="display: none;">Ready...</div>
-            <div id="lastRunBox" class="last-run" style="display:none;"></div>
-            
-            <button class="btn-red" style="font-size:1.2rem;" onclick="resetTimer()">RESET TIMER</button>
-        </div>
+        <button class="btn-blue" id="connectBtn" onclick="connectDevice()">CONNECT SPEED GATES</button>
+        <div id="status">Status: Disconnected ❌</div>
     </div>
 
-    <div id="page-pb" class="page">
-        <div class="card" style="text-align: left;">
-            <h2>Personal Bests</h2>
-            <div id="pbList"></div>
-        </div>
+    <div class="card">
+        <input type="text" id="eventName" placeholder="Event Name (e.g. 40yd, 10yd Split)">
+        <select id="athleteSelect"></select>
+        <input type="text" id="newName" placeholder="Add Athlete Name...">
+        <button class="btn-green" style="padding: 10px;" onclick="addAthlete()">Add to Roster</button>
     </div>
 
-    <div id="page-settings" class="page">
-        
-        <div class="card" style="text-align: left;">
-            <h2>Roster Management</h2>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="newName" placeholder="New Athlete Name" style="margin:0;">
-                <button class="btn-green" style="width: auto; margin:0; padding: 0 20px;" onclick="addAthlete()">ADD</button>
-            </div>
-            <div id="rosterList" style="margin-top:15px; border-top:1px solid #333; max-height: 200px; overflow-y: auto;"></div>
-        </div>
+    <div class="card">
+        <label class="section-label">Target Splits (0 = Gate 2 finishes run)</label>
+        <input type="number" id="splitTarget" value="0" min="0">
+        <div class="big-metric" id="speedDisplay">0.000</div>
+        <button class="btn-red" onclick="resetSpeed()">Reset Timer</button>
+    </div>
 
-        <div class="card" style="text-align: left;">
-            <h2>Google Sheets Sync</h2>
-            <label class="section-label">Web App URL (Leave blank to disable)</label>
-            <input type="text" id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/..." onchange="saveSheetsUrl()">
-        </div>
-
-        <div class="card">
-            <h2>System</h2>
-            <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
-            <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 3.2 (Final Fix)</div>
-        </div>
+    <div class="card">
+        <strong>Session History</strong>
+        <table id="historyTable">
+            <thead><tr><th>Athlete</th><th>Event</th><th>Result</th></tr></thead>
+            <tbody></tbody>
+        </table>
     </div>
 
     <script>
-        // Global Variables
-        let startTime, lapStartTime, timerInterval;
-        let isConnected = false;
-        let timerMode = 'standard'; 
-        let splitTimes = [];
-        
-        // Load Saved Data
-        let roster = JSON.parse(localStorage.getItem('roster')) || [];
-        let pbs = JSON.parse(localStorage.getItem('pbs')) || {}; 
-        let sheetsUrl = localStorage.getItem('sheetsUrl') || "";
+        let startTime, timerInterval, splitTimes = [];
+        let roster = JSON.parse(localStorage.getItem('roster')) || ["Demo Athlete"];
 
-        window.onload = () => {
-            document.getElementById('sheetsUrlInput').value = sheetsUrl;
-            updateRosterSelect();
-            renderRoster();
-            setTimerMode('standard'); 
+        // --- Auto-Load & Settings ---
+        window.onload = function() {
+            const savedUrl = localStorage.getItem('speedGateSheetsUrl');
+            if (savedUrl) document.getElementById('sheetsUrlInput').value = savedUrl;
+            updateRosterUI();
         };
 
-        // --- NAVIGATION LOGIC ---
-        function navTo(target) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('page-' + target).classList.add('active');
-            document.getElementById('tab-' + target).classList.add('active');
-            if(target === 'pb') renderPBs();
-            if(target === 'settings') renderRoster();
-            if(target === 'timer') updateRosterSelect();
+        function saveSettings() {
+            const url = document.getElementById('sheetsUrlInput').value.trim();
+            localStorage.setItem('speedGateSheetsUrl', url);
+            console.log("Settings Saved Permanently");
         }
 
-        // --- BLUETOOTH LOGIC ---
-        async function connectBLE() {
+        function addAthlete() {
+            const name = document.getElementById('newName').value.trim();
+            if (name && !roster.includes(name)) {
+                roster.push(name);
+                localStorage.setItem('roster', JSON.stringify(roster));
+                updateRosterUI();
+                document.getElementById('newName').value = "";
+            }
+        }
+
+        function updateRosterUI() {
+            const select = document.getElementById('athleteSelect');
+            select.innerHTML = roster.map(name => `<option value="${name}">${name}</option>`).join('');
+        }
+
+        // --- Bluetooth Logic ---
+        async function connectDevice() {
             try {
                 const device = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'Blake_SpeedGate' }],
@@ -161,216 +97,72 @@
                 });
                 const server = await device.gatt.connect();
                 const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
-                const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
+                const characteristic = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 
-                await char.startNotifications();
-                char.addEventListener('characteristicvaluechanged', (e) => {
+                await characteristic.startNotifications();
+                characteristic.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    if(val !== "IDLE") handleTrigger(val);
+                    handleSpeedTrigger(val);
                 });
-                
-                isConnected = true;
-                const badge = document.getElementById('homeStatus');
-                badge.innerHTML = "Connected ✅";
-                badge.classList.add('status-connected');
-                
+
+                document.getElementById('status').innerHTML = "Gates Connected ✅";
+                document.getElementById('connectBtn').classList.add('hidden');
+
                 device.addEventListener('gattserverdisconnected', () => {
-                    isConnected = false;
-                    badge.innerHTML = "Disconnected ❌";
-                    badge.classList.remove('status-connected');
-                    alert("Gate connection lost.");
+                    document.getElementById('status').innerHTML = "Status: Disconnected ❌";
+                    document.getElementById('connectBtn').classList.remove('hidden');
                 });
-                setTimeout(() => navTo('timer'), 1000);
-            } catch (err) { 
-                alert("Connection Error. Ensure gates are on and Bluetooth/Location is active."); 
-            }
+            } catch (err) { alert("Connection Error: " + err); }
         }
 
-        // --- TIMER & SPLITS LOGIC ---
-        function setTimerMode(mode) {
-            timerMode = mode;
-            document.getElementById('btnStandard').className = mode === 'standard' ? 'btn-blue' : 'btn-dark';
-            document.getElementById('btnSplits').className = mode === 'splits' ? 'btn-blue' : 'btn-dark';
-            document.getElementById('splitsSetup').style.display = mode === 'splits' ? 'block' : 'none';
-            document.getElementById('liveSplits').style.display = mode === 'splits' ? 'block' : 'none';
-            resetTimer();
-        }
-
-        function handleTrigger(gate) {
-            if (!startTime && gate === "GATE1") {
+        // --- Speed Logic ---
+        function handleSpeedTrigger(gate) {
+            if (!startTime) {
+                // START TIMER (Always Gate 1)
                 startTime = performance.now();
-                lapStartTime = startTime;
-                splitTimes = [];
-                document.getElementById('lastRunBox').style.display = "none";
-                if(timerMode === 'splits') document.getElementById('liveSplits').innerHTML = "🏃 RUNNING...";
-
                 timerInterval = setInterval(() => {
-                    document.getElementById('display').innerHTML = ((performance.now() - lapStartTime) / 1000).toFixed(3);
+                    document.getElementById('speedDisplay').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
                 }, 10);
+            } else {
+                let time = ((performance.now() - startTime) / 1000).toFixed(3);
+                let target = parseInt(document.getElementById('splitTarget').value);
                 
-            } else if (startTime) {
-                let now = performance.now();
-                let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
-                let totalTime = ((now - startTime) / 1000).toFixed(3);
-
-                if (timerMode === 'standard' && gate === "GATE2") {
-                    stopTimer(totalTime);
-                } else if (timerMode === 'splits' && gate === "GATE1") {
-                    if (parseFloat(lapTime) < 0.5) return; 
-                    
-                    splitTimes.push(lapTime);
-                    lapStartTime = now; // RESET MAIN TIMER FOR NEXT LAP
-                    
-                    document.getElementById('liveSplits').innerHTML = splitTimes.map((s, i) => `Lap ${i+1}: ${s}s`).join('<br>');
-                    
-                    const target = parseInt(document.getElementById('targetSplits').value);
-                    if (splitTimes.length >= target) {
-                        stopTimer(totalTime);
-                    }
+                if (target > 0) {
+                    // SPLIT MODE (Every break counts)
+                    splitTimes.push(time);
+                    if (splitTimes.length >= target) finishRun(time);
+                } else if (gate === "GATE2") {
+                    // STANDARD MODE (Waits for Gate 2)
+                    finishRun(time);
                 }
             }
         }
 
-        function stopTimer(finalTotalTimeStr) {
+        function finishRun(finalTime) {
             clearInterval(timerInterval);
-            const athlete = document.getElementById('athleteSelect').value || "Guest";
-            const event = document.getElementById('eventName').value || "General";
-            const finalTotalTime = parseFloat(finalTotalTimeStr).toFixed(3);
-
-            let isPB = false;
-            if (athlete !== "Guest") {
-                if (!pbs[athlete]) pbs[athlete] = {};
-                if (!pbs[athlete][event] || parseFloat(finalTotalTime) < parseFloat(pbs[athlete][event])) {
-                    pbs[athlete][event] = finalTotalTime;
-                    localStorage.setItem('pbs', JSON.stringify(pbs));
-                    isPB = true;
-                }
-            }
-
-            const lastBox = document.getElementById('lastRunBox');
-            let resultText = `<strong>${athlete}: Total ${finalTotalTime}s</strong> ${isPB ? '🔥 PB!' : ''}`;
-            if (timerMode === 'splits') {
-                resultText += `<br><span style="font-size:0.9rem; color:#aaa; font-weight:normal;">Laps: ${splitTimes.join(' / ')}</span>`;
-            }
-            lastBox.innerHTML = resultText;
-            lastBox.style.display = "block";
             
-            updatePBDisplay();
-            startTime = null;
-
-            if(sheetsUrl && sheetsUrl.length > 10) {
-                const splitsData = timerMode === 'splits' ? splitTimes.join('|') : "";
-                fetch(`${sheetsUrl}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTotalTime}&splits=${splitsData}`)
-                .catch(e => console.log("Sheet sync failed"));
-            }
-        }
-
-        function resetTimer() {
-            startTime = null;
-            lapStartTime = null;
-            splitTimes = [];
-            clearInterval(timerInterval);
-            document.getElementById('display').innerHTML = "0.000";
-            document.getElementById('lastRunBox').style.display = "none";
-            if(timerMode === 'splits') document.getElementById('liveSplits').innerHTML = "Ready...";
-        }
-
-        // --- ROSTER & SETTINGS LOGIC ---
-        function addAthlete() {
-            const nameInput = document.getElementById('newName');
-            const name = nameInput.value.trim();
-            if (name && !roster.includes(name)) {
-                roster.push(name);
-                localStorage.setItem('roster', JSON.stringify(roster));
-                nameInput.value = "";
-                renderRoster();
-            }
-        }
-
-        function deleteAthlete(index) {
-            if(confirm("Delete this athlete?")) {
-                roster.splice(index, 1);
-                localStorage.setItem('roster', JSON.stringify(roster));
-                renderRoster();
-            }
-        }
-
-        function renderRoster() {
-            const list = document.getElementById('rosterList');
-            if (roster.length === 0) {
-                list.innerHTML = "<div style='color:#666; font-size:0.9rem; padding:10px 0;'>No athletes in roster.</div>";
-                return;
-            }
-            list.innerHTML = roster.map((name, i) => `
-                <div class="roster-item">
-                    <span>${name}</span>
-                    <button class="btn-del" onclick="deleteAthlete(${i})">X</button>
-                </div>
-            `).join('');
-            updateRosterSelect();
-        }
-
-        function updateRosterSelect() {
-            const select = document.getElementById('athleteSelect');
-            if(!select) return;
-            const currentVal = select.value;
-            let options = `<option value="Guest">Select Athlete (Guest)</option>`;
-            options += roster.map(name => `<option value="${name}">${name}</option>`).join('');
-            select.innerHTML = options;
-            if(currentVal && roster.includes(currentVal)) select.value = currentVal;
-            updatePBDisplay();
-        }
-
-        function updatePBDisplay() {
             const athlete = document.getElementById('athleteSelect').value;
-            const event = document.getElementById('eventName').value || "General";
-            if (athlete === "Guest") {
-                document.getElementById('currentPB').innerText = "--";
-                return;
+            const event = document.getElementById('eventName').value || "Speed Drill";
+            const url = document.getElementById('sheetsUrlInput').value;
+
+            // Log to local table
+            const tbody = document.querySelector('#historyTable tbody');
+            const row = tbody.insertRow(0);
+            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${finalTime}s</td>`;
+
+            // Sync to Google Sheets
+            if (url && url.includes("google.com")) {
+                fetch(`${url}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${splitTimes.join('|')}`);
             }
-            const pb = (pbs[athlete] && pbs[athlete][event]) ? pbs[athlete][event] : "--";
-            document.getElementById('currentPB').innerText = pb + (pb === "--" ? "" : "s");
+
+            resetSpeed();
         }
 
-        function renderPBs() {
-            const list = document.getElementById('pbList');
-            if (Object.keys(pbs).length === 0) {
-                list.innerHTML = "<div style='color:#666;'>No Personal Bests recorded yet.</div>";
-                return;
-            }
-            let html = "";
-            for (let athlete in pbs) {
-                html += `<div style="margin-bottom:15px; border-bottom:1px solid #222; padding-bottom:10px;">
-                            <strong style="color:#00ff00; font-size:1.1rem;">${athlete}</strong><br>`;
-                for (let event in pbs[athlete]) {
-                    html += `<div style="display:flex; justify-content:space-between; font-size:0.9rem; margin-top:5px;">
-                                <span style="color:#aaa;">${event}:</span> 
-                                <span style="font-weight:bold;">${pbs[athlete][event]}s</span>
-                             </div>`;
-                }
-                html += `</div>`;
-            }
-            list.innerHTML = html;
-        }
-
-        function saveSheetsUrl() {
-            sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
-            localStorage.setItem('sheetsUrl', sheetsUrl);
-        }
-
-        function clearPBs() {
-            if(confirm("Delete all Personal Bests?")) {
-                pbs = {};
-                localStorage.removeItem('pbs');
-                renderPBs();
-            }
-        }
-
-        function factoryReset() {
-            if(confirm("Wipe ALL data?")) {
-                localStorage.clear();
-                location.reload();
-            }
+        function resetSpeed() {
+            clearInterval(timerInterval);
+            startTime = null;
+            splitTimes = [];
+            document.getElementById('speedDisplay').innerHTML = "0.000";
         }
     </script>
 </body>
