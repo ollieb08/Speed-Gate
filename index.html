@@ -4,20 +4,32 @@
     <title>Blake Health & Strength Timer</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 10px; margin: 0; }
-        .header { padding: 20px; background: #1e1e1e; border-bottom: 2px solid #00ff00; margin-bottom: 10px; }
-        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin: 10px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        .big-metric { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 10px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; padding: 0; margin: 0; }
+        .header { padding: 15px; background: #1a1a1a; border-bottom: 2px solid #00ff00; }
+        
+        /* Tab Navigation */
+        .tabs { display: flex; background: #1e1e1e; border-bottom: 2px solid #333; }
+        .tab { flex: 1; padding: 15px; cursor: pointer; color: #888; font-weight: bold; text-transform: uppercase; font-size: 0.9rem; transition: 0.2s;}
+        .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: #252525; }
+        
+        .view-section { padding: 15px; display: none; }
+        .view-section.active { display: block; }
+
+        .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .big-metric { font-size: 5rem; font-weight: bold; color: #00ff00; font-family: monospace; margin: 15px 0; text-shadow: 0 0 10px rgba(0,255,0,0.3); }
+        
         select, input { width: 100%; padding: 12px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
         button { width: 100%; padding: 15px; border-radius: 10px; border: none; font-weight: bold; font-size: 1rem; cursor: pointer; margin: 5px 0; transition: 0.2s; }
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
-        .section-label { display: block; text-align: left; font-size: 0.8rem; color: #888; margin-top: 10px; }
-        table { width: 100%; margin-top: 15px; border-collapse: collapse; background: #1e1e1e; font-size: 0.8rem;}
-        th, td { border: 1px solid #333; padding: 10px; text-align: center; }
+        
+        .section-label { display: block; text-align: left; font-size: 0.85rem; color: #aaa; margin-top: 5px; text-transform: uppercase;}
+        .status-text { font-size: 1rem; margin: 10px 0; color: #aaa; }
+        
+        table { width: 100%; border-collapse: collapse; background: #1e1e1e; font-size: 0.9rem;}
+        th, td { border: 1px solid #333; padding: 12px; text-align: center; }
         th { background: #252525; color: #00ff00; }
-        .hidden { display: none; }
     </style>
 </head>
 <body>
@@ -26,60 +38,106 @@
         <h2 style="margin:0;">Blake Health & Strength</h2>
     </div>
 
-    <div class="card">
-        <label class="section-label">Google Sheets Web App URL</label>
-        <input type="text" id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/..." onchange="saveSettings()">
+    <div class="tabs">
+        <div id="nav-timer" class="tab active" onclick="switchTab('timer')">Timer</div>
+        <div id="nav-history" class="tab" onclick="switchTab('history')">History</div>
+        <div id="nav-settings" class="tab" onclick="switchTab('settings')">Settings</div>
+    </div>
+
+    <div id="view-timer" class="view-section active">
         
-        <button class="btn-blue" id="connectBtn" onclick="connectDevice()">CONNECT SPEED GATES</button>
-        <div id="status">Status: Disconnected ❌</div>
+        <div class="card" id="connectionCard">
+            <button class="btn-blue" id="connectBtn" onclick="connectDevice()">CONNECT SPEED GATES</button>
+            <div id="status" class="status-text">Status: Disconnected ❌</div>
+        </div>
+
+        <div class="card">
+            <label class="section-label">Select Athlete & Event</label>
+            <select id="athleteSelect"></select>
+            <input type="text" id="eventName" placeholder="Event (e.g., 40yd Dash, 10yd Split)">
+        </div>
+
+        <div class="card">
+            <label class="section-label">Gate Mode (0 = Use Gate 2 to stop)</label>
+            <input type="number" id="splitTarget" value="0" min="0" title="Set to 1 or more for single-gate split drills">
+            
+            <div class="big-metric" id="speedDisplay">0.000</div>
+            
+            <button class="btn-red" onclick="resetSpeed()">Reset Timer</button>
+        </div>
     </div>
 
-    <div class="card">
-        <input type="text" id="eventName" placeholder="Event Name (e.g. 40yd, 10yd Split)">
-        <select id="athleteSelect"></select>
-        <input type="text" id="newName" placeholder="Add Athlete Name...">
-        <button class="btn-green" style="padding: 10px;" onclick="addAthlete()">Add to Roster</button>
+    <div id="view-history" class="view-section">
+        <div class="card" style="padding: 10px;">
+            <table>
+                <thead><tr><th>Athlete</th><th>Event</th><th>Time</th></tr></thead>
+                <tbody id="historyTableBody">
+                    </tbody>
+            </table>
+        </div>
     </div>
 
-    <div class="card">
-        <label class="section-label">Target Splits (0 = Gate 2 finishes run)</label>
-        <input type="number" id="splitTarget" value="0" min="0">
-        <div class="big-metric" id="speedDisplay">0.000</div>
-        <button class="btn-red" onclick="resetSpeed()">Reset Timer</button>
-    </div>
+    <div id="view-settings" class="view-section">
+        
+        <div class="card">
+            <label class="section-label">Google Sheets Integration</label>
+            <p style="font-size: 0.8rem; color: #888; text-align: left; margin: 5px 0;">Paste your Web App URL here. It will auto-save to your device.</p>
+            <input type="text" id="sheetsUrlInput" placeholder="https://script.google.com/macros/s/..." onchange="saveUrl()">
+        </div>
 
-    <div class="card">
-        <strong>Session History</strong>
-        <table id="historyTable">
-            <thead><tr><th>Athlete</th><th>Event</th><th>Result</th></tr></thead>
-            <tbody></tbody>
-        </table>
+        <div class="card">
+            <label class="section-label">Roster Management</label>
+            <input type="text" id="newName" placeholder="New Athlete Name...">
+            <button class="btn-green" onclick="addAthlete()">Add to Roster</button>
+            <button class="btn-red" style="margin-top: 15px; opacity: 0.8;" onclick="clearRoster()">Clear Entire Roster</button>
+        </div>
+
     </div>
 
     <script>
         let startTime, timerInterval, splitTimes = [];
-        let roster = JSON.parse(localStorage.getItem('roster')) || ["Demo Athlete"];
+        let roster = JSON.parse(localStorage.getItem('bhs_roster')) || ["Demo Athlete"];
 
-        // --- Auto-Load & Settings ---
+        // --- Initialization ---
         window.onload = function() {
-            const savedUrl = localStorage.getItem('speedGateSheetsUrl');
+            const savedUrl = localStorage.getItem('bhs_sheetsUrl');
             if (savedUrl) document.getElementById('sheetsUrlInput').value = savedUrl;
             updateRosterUI();
         };
 
-        function saveSettings() {
+        // --- Tab Navigation ---
+        function switchTab(tabName) {
+            // Reset all tabs
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.view-section').forEach(v => v.classList.remove('active'));
+            
+            // Activate selected
+            document.getElementById('nav-' + tabName).classList.add('active');
+            document.getElementById('view-' + tabName).classList.add('active');
+        }
+
+        // --- Settings & Roster (Auto-Save) ---
+        function saveUrl() {
             const url = document.getElementById('sheetsUrlInput').value.trim();
-            localStorage.setItem('speedGateSheetsUrl', url);
-            console.log("Settings Saved Permanently");
+            localStorage.setItem('bhs_sheetsUrl', url);
         }
 
         function addAthlete() {
             const name = document.getElementById('newName').value.trim();
             if (name && !roster.includes(name)) {
                 roster.push(name);
-                localStorage.setItem('roster', JSON.stringify(roster));
+                localStorage.setItem('bhs_roster', JSON.stringify(roster));
                 updateRosterUI();
                 document.getElementById('newName').value = "";
+                alert(name + " added to roster!");
+            }
+        }
+
+        function clearRoster() {
+            if(confirm("Are you sure you want to delete all athletes?")) {
+                roster = ["Demo Athlete"];
+                localStorage.setItem('bhs_roster', JSON.stringify(roster));
+                updateRosterUI();
             }
         }
 
@@ -88,7 +146,7 @@
             select.innerHTML = roster.map(name => `<option value="${name}">${name}</option>`).join('');
         }
 
-        // --- Bluetooth Logic ---
+        // --- Bluetooth Connection ---
         async function connectDevice() {
             try {
                 const device = await navigator.bluetooth.requestDevice({
@@ -102,23 +160,23 @@
                 await characteristic.startNotifications();
                 characteristic.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    handleSpeedTrigger(val);
+                    handleTrigger(val);
                 });
 
-                document.getElementById('status').innerHTML = "Gates Connected ✅";
-                document.getElementById('connectBtn').classList.add('hidden');
+                document.getElementById('status').innerHTML = "Status: Gates Connected ✅";
+                document.getElementById('connectBtn').style.display = 'none';
 
                 device.addEventListener('gattserverdisconnected', () => {
                     document.getElementById('status').innerHTML = "Status: Disconnected ❌";
-                    document.getElementById('connectBtn').classList.remove('hidden');
+                    document.getElementById('connectBtn').style.display = 'block';
                 });
-            } catch (err) { alert("Connection Error: " + err); }
+            } catch (err) { alert("Connection Error: Check location/Bluetooth permissions."); console.log(err); }
         }
 
-        // --- Speed Logic ---
-        function handleSpeedTrigger(gate) {
+        // --- Timing Logic ---
+        function handleTrigger(gate) {
             if (!startTime) {
-                // START TIMER (Always Gate 1)
+                // First beam break starts the clock
                 startTime = performance.now();
                 timerInterval = setInterval(() => {
                     document.getElementById('speedDisplay').innerHTML = ((performance.now() - startTime) / 1000).toFixed(3);
@@ -128,11 +186,11 @@
                 let target = parseInt(document.getElementById('splitTarget').value);
                 
                 if (target > 0) {
-                    // SPLIT MODE (Every break counts)
+                    // Split Mode: Count breaks on Gate 1
                     splitTimes.push(time);
                     if (splitTimes.length >= target) finishRun(time);
                 } else if (gate === "GATE2") {
-                    // STANDARD MODE (Waits for Gate 2)
+                    // Standard 2-Gate Mode
                     finishRun(time);
                 }
             }
@@ -142,20 +200,22 @@
             clearInterval(timerInterval);
             
             const athlete = document.getElementById('athleteSelect').value;
-            const event = document.getElementById('eventName').value || "Speed Drill";
+            const event = document.getElementById('eventName').value || "Sprint";
             const url = document.getElementById('sheetsUrlInput').value;
+            const splitsLog = splitTimes.length > 0 ? splitTimes.join(' / ') : "N/A";
 
-            // Log to local table
-            const tbody = document.querySelector('#historyTable tbody');
+            // Update History Tab
+            const tbody = document.getElementById('historyTableBody');
             const row = tbody.insertRow(0);
-            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td>${finalTime}s</td>`;
+            row.innerHTML = `<td>${athlete}</td><td>${event}</td><td><strong>${finalTime}s</strong><br><span style="font-size:0.7rem; color:#888;">Splits: ${splitsLog}</span></td>`;
 
-            // Sync to Google Sheets
+            // Send to Google Sheets
             if (url && url.includes("google.com")) {
-                fetch(`${url}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${splitTimes.join('|')}`);
+                fetch(`${url}?athlete=${encodeURIComponent(athlete)}&event=${encodeURIComponent(event)}&time=${finalTime}&splits=${encodeURIComponent(splitsLog)}`);
             }
 
-            resetSpeed();
+            // Auto-reset for the next runner after a 2-second delay so they can see their time
+            setTimeout(resetSpeed, 2000); 
         }
 
         function resetSpeed() {
