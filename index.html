@@ -5,41 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding-bottom: 20px; }
-        
-        /* Navigation Tabs */
         .tabs { display: flex; background: #1e1e1e; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 1000; }
         .tab { flex: 1; padding: 15px 5px; cursor: pointer; color: #888; font-weight: bold; font-size: 0.85rem; transition: 0.2s; }
         .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: rgba(0,255,0,0.05); }
-        
-        /* Page Control */
         .page { display: none; padding: 15px; max-width: 600px; margin: 0 auto; }
         .page.active { display: block; }
-
-        /* UI Components */
         .card { background: #1e1e1e; padding: 20px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #333; }
         .timer { font-size: 5.5rem; font-weight: bold; color: #00ff00; font-family: monospace; line-height: 1; margin: 10px 0; }
-        
         input, select { width: 100%; padding: 14px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
         button { width: 100%; padding: 16px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 8px 0; font-size: 1rem; transition: 0.2s; }
         button:active { transform: scale(0.98); opacity: 0.8; }
-        
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
         .btn-green { background: #28a745; color: white; }
         .btn-dark { background: #333; color: white; border: 1px solid #555; }
-        
         .mode-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
         .mode-toggle button { margin: 0; padding: 12px; font-size: 0.9rem; }
-        
         .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #333; font-size: 0.9rem; margin-top: 10px; }
         .status-connected { background: rgba(0, 255, 0, 0.2); color: #00ff00; border: 1px solid #00ff00; }
-        
         .last-run { font-size: 1.1rem; color: #00ff00; background: #000; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; font-weight: bold; }
         .split-log { color: #aaa; font-size: 1rem; margin: 10px 0; text-align: left; background: #0a0a0a; padding: 12px; border-radius: 8px; font-family: monospace; border: 1px solid #222; }
-        
         .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #333; text-align: left; }
         .btn-del { background: #ff4444; width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; color: white; border-radius: 6px; }
-        
         h2 { margin-top: 0; color: #00ff00; text-transform: uppercase; letter-spacing: 1px; font-size: 1.2rem; }
         .section-label { text-align: left; font-size: 0.85rem; color: #aaa; text-transform: uppercase; margin-top: 15px; display: block; }
     </style>
@@ -58,7 +45,11 @@
             <h1 style="margin: 0 0 10px 0; font-size: 1.8rem;">Blake Health & Strength</h1>
             <p style="color: #888; margin-bottom: 30px;">Timing & Performance Tracking</p>
             
-            <button class="btn-blue" style="font-size: 1.2rem; padding: 20px;" onclick="connectBLE()">📡 CONNECT TO GATES</button>
+            <div id="connectControls">
+                <button id="btnConnect" class="btn-blue" style="font-size: 1.2rem; padding: 20px;" onclick="connectBLE()">📡 CONNECT TO GATES</button>
+                <button id="btnDisconnect" class="btn-red" style="display:none; font-size: 1.1rem;" onclick="disconnectBLE()">🔌 DISCONNECT GATES</button>
+            </div>
+            
             <div id="homeStatus" class="status-badge">Disconnected ❌</div>
         </div>
     </div>
@@ -117,17 +108,16 @@
             <h2>System</h2>
             <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
             <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 3.2 (Restored & Saved)</div>
+            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 3.3 (Disconnect Support)</div>
         </div>
     </div>
 
     <script>
-        let startTime, lapStartTime, timerInterval;
+        let startTime, lapStartTime, timerInterval, bleDevice;
         let isConnected = false;
         let timerMode = 'standard'; 
         let splitTimes = [];
         
-        // Persistent Storage Access
         let roster = JSON.parse(localStorage.getItem('roster')) || [];
         let pbs = JSON.parse(localStorage.getItem('pbs')) || {}; 
         let sheetsUrl = localStorage.getItem('sheetsUrl') || "";
@@ -151,11 +141,11 @@
 
         async function connectBLE() {
             try {
-                const device = await navigator.bluetooth.requestDevice({
+                bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'Blake_SpeedGate' }],
                     optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
                 });
-                const server = await device.gatt.connect();
+                const server = await bleDevice.gatt.connect();
                 const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
                 const char = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 
@@ -166,18 +156,39 @@
                 });
                 
                 isConnected = true;
-                const badge = document.getElementById('homeStatus');
+                updateUIForConnection(true);
+                
+                bleDevice.addEventListener('gattserverdisconnected', () => {
+                    isConnected = false;
+                    updateUIForConnection(false);
+                });
+                setTimeout(() => navTo('timer'), 800);
+            } catch (err) { alert("Connection failed. Check Bluetooth."); }
+        }
+
+        async function disconnectBLE() {
+            if (bleDevice && bleDevice.gatt.connected) {
+                await bleDevice.gatt.disconnect();
+                isConnected = false;
+                updateUIForConnection(false);
+            }
+        }
+
+        function updateUIForConnection(connected) {
+            const badge = document.getElementById('homeStatus');
+            const connectBtn = document.getElementById('btnConnect');
+            const disconnectBtn = document.getElementById('btnDisconnect');
+            
+            if(connected) {
                 badge.innerHTML = "Connected ✅";
                 badge.classList.add('status-connected');
-                
-                device.addEventListener('gattserverdisconnected', () => {
-                    isConnected = false;
-                    badge.innerHTML = "Disconnected ❌";
-                    badge.classList.remove('status-connected');
-                });
-                setTimeout(() => navTo('timer'), 1000);
-            } catch (err) { 
-                alert("Connection Error. Check Bluetooth/Location."); 
+                connectBtn.style.display = 'none';
+                disconnectBtn.style.display = 'block';
+            } else {
+                badge.innerHTML = "Disconnected ❌";
+                badge.classList.remove('status-connected');
+                connectBtn.style.display = 'block';
+                disconnectBtn.style.display = 'none';
             }
         }
 
@@ -197,11 +208,9 @@
                 splitTimes = [];
                 document.getElementById('lastRunBox').style.display = "none";
                 if(timerMode === 'splits') document.getElementById('liveSplits').innerHTML = "🏃 RUNNING...";
-
                 timerInterval = setInterval(() => {
                     document.getElementById('display').innerHTML = ((performance.now() - lapStartTime) / 1000).toFixed(3);
                 }, 10);
-                
             } else if (startTime) {
                 let now = performance.now();
                 let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
@@ -238,12 +247,9 @@
 
             const lastBox = document.getElementById('lastRunBox');
             let resultText = `<strong>${athlete}: Total ${finalTotalTime}s</strong> ${isPB ? '🔥 PB!' : ''}`;
-            if (timerMode === 'splits') {
-                resultText += `<br><span style="font-size:0.9rem; color:#aaa;">Laps: ${splitTimes.join(' / ')}</span>`;
-            }
+            if (timerMode === 'splits') resultText += `<br><span style="font-size:0.9rem; color:#aaa;">Laps: ${splitTimes.join(' / ')}</span>`;
             lastBox.innerHTML = resultText;
             lastBox.style.display = "block";
-            
             startTime = null;
 
             if(sheetsUrl && sheetsUrl.length > 10) {
@@ -311,20 +317,14 @@
         function updatePBDisplay() {
             const athlete = document.getElementById('athleteSelect').value;
             const event = document.getElementById('eventName').value || "General";
-            if (athlete === "Guest") {
-                document.getElementById('currentPB').innerText = "--";
-                return;
-            }
+            if (athlete === "Guest") { document.getElementById('currentPB').innerText = "--"; return; }
             const pb = (pbs[athlete] && pbs[athlete][event]) ? pbs[athlete][event] : "--";
             document.getElementById('currentPB').innerText = pb + (pb === "--" ? "" : "s");
         }
 
         function renderPBs() {
             const list = document.getElementById('pbList');
-            if (Object.keys(pbs).length === 0) {
-                list.innerHTML = "<div style='color:#666;'>No Personal Bests yet.</div>";
-                return;
-            }
+            if (Object.keys(pbs).length === 0) { list.innerHTML = "<div style='color:#666;'>No Personal Bests yet.</div>"; return; }
             let html = "";
             for (let athlete in pbs) {
                 html += `<div style="margin-bottom:15px; border-bottom:1px solid #222; padding-bottom:10px;">
@@ -345,13 +345,8 @@
             localStorage.setItem('sheetsUrl', sheetsUrl);
         }
 
-        function clearPBs() {
-            if(confirm("Delete PBs?")) { pbs = {}; localStorage.removeItem('pbs'); renderPBs(); }
-        }
-
-        function factoryReset() {
-            if(confirm("Wipe ALL data?")) { localStorage.clear(); location.reload(); }
-        }
+        function clearPBs() { if(confirm("Delete PBs?")) { pbs = {}; localStorage.removeItem('pbs'); renderPBs(); } }
+        function factoryReset() { if(confirm("Wipe ALL data?")) { localStorage.clear(); location.reload(); } }
     </script>
 </body>
 </html>
