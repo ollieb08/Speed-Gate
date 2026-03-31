@@ -149,24 +149,34 @@
         <div class="card">
             <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
             <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.0 (Crash-Proof Architecture)</div>
+            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.1 (Fully Expanded Architecture)</div>
         </div>
     </div>
 
     <script>
-        // --- CRASH-PROOF STORAGE INITIALIZATION ---
+        // ==========================================
+        // 1. DATA STORAGE & INITIALIZATION
+        // ==========================================
         let roster = ["Guest"];
         let pbs = {};
         let sheetsUrl = "";
 
         try {
             let savedRoster = localStorage.getItem('roster');
-            if (savedRoster) roster = JSON.parse(savedRoster);
-            if (!Array.isArray(roster)) roster = ["Guest"];
+            if (savedRoster) {
+                roster = JSON.parse(savedRoster);
+            }
+            if (!Array.isArray(roster)) {
+                roster = ["Guest"];
+            }
             
             let savedPBs = localStorage.getItem('pbs');
-            if (savedPBs) pbs = JSON.parse(savedPBs);
-            if (typeof pbs !== 'object' || Array.isArray(pbs)) pbs = {};
+            if (savedPBs) {
+                pbs = JSON.parse(savedPBs);
+            }
+            if (typeof pbs !== 'object' || Array.isArray(pbs)) {
+                pbs = {};
+            }
             
             sheetsUrl = localStorage.getItem('sheetsUrl') || "";
         } catch (e) {
@@ -175,72 +185,126 @@
             pbs = {};
         }
 
-        // Safe Save Wrapper
+        // Helper to safely save to local storage
         function saveLocal(key, data) {
-            try { localStorage.setItem(key, typeof data === 'string' ? data : JSON.stringify(data)); } 
-            catch (e) { console.warn("Storage blocked by device."); }
+            try { 
+                if (typeof data === 'string') {
+                    localStorage.setItem(key, data);
+                } else {
+                    localStorage.setItem(key, JSON.stringify(data));
+                }
+            } 
+            catch (e) { 
+                console.warn("Storage blocked by device."); 
+            }
         }
 
-        // --- CORE VARIABLES ---
-        let totalStartTime, lapStartTime, timerInterval, bleDevice, bleChar, wakeLock;
+        // ==========================================
+        // 2. CORE VARIABLES
+        // ==========================================
+        let totalStartTime = null;
+        let lapStartTime = null;
+        let timerInterval = null;
+        let bleDevice = null;
+        let bleChar = null;
+        let wakeLock = null;
+        
         let isConnected = false;
         let timerMode = 'standard'; 
         let splitTimes = [];
         let isSprintArmed = false;
         
-        let sheetUploadTimeout;
+        let sheetUploadTimeout = null;
         let lastPBRevertData = null;
 
-        // --- ON PAGE LOAD ---
+        // ==========================================
+        // 3. PAGE LOAD & NAVIGATION
+        // ==========================================
         window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('sheetsUrlInput').value = sheetsUrl;
+            document.getElementById('eventName').value = "40yd Dash";
             renderRoster();
             setTimerMode('standard'); 
-            document.getElementById('eventName').value = "40yd Dash";
             updatePBDisplay();
         });
 
-        // --- WAKE LOCK & VOICE ---
+        function navTo(target) {
+            // Hide all pages and tabs
+            const pages = document.querySelectorAll('.page');
+            for (let i = 0; i < pages.length; i++) {
+                pages[i].classList.remove('active');
+            }
+            
+            const tabs = document.querySelectorAll('.tab');
+            for (let i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+            
+            // Show the target page and tab
+            document.getElementById('page-' + target).classList.add('active');
+            document.getElementById('tab-' + target).classList.add('active');
+            
+            // Handle page-specific logic
+            if (target === 'pb') {
+                renderPBs();
+            }
+            if (target === 'settings') {
+                renderRoster();
+            }
+            if (target === 'timer') { 
+                renderRoster(); // Safely updates dropdowns without calling a missing function
+                sendCommand("SET_SPRINT"); 
+                disarmSprint(); 
+            }
+            if (target === 'jump') {
+                renderRoster();
+                sendCommand("ARM_JUMP");
+            }
+        }
+
+        // ==========================================
+        // 4. HARDWARE FEATURES (WAKE LOCK & VOICE)
+        // ==========================================
         async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } 
-            catch (err) {}
+            try { 
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) { 
+                console.log("Wake Lock error", err); 
+            }
         }
 
         function speakTime(timeStr) {
             if ('speechSynthesis' in window) {
-                let msg = new SpeechSynthesisUtterance(timeStr.replace('.', ' point '));
+                // Replace decimals with the word "point" so it sounds natural
+                let spokenText = timeStr.replace('.', ' point ');
+                let msg = new SpeechSynthesisUtterance(spokenText);
                 window.speechSynthesis.speak(msg);
             }
         }
 
-        // --- NAVIGATION ---
-        function navTo(target) {
-            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.getElementById('page-' + target).classList.add('active');
-            document.getElementById('tab-' + target).classList.add('active');
-            
-            if(target === 'pb') renderPBs();
-            if(target === 'settings') renderRoster();
-            if(target === 'timer') { updateRosterSelect(); sendCommand("SET_SPRINT"); disarmSprint(); }
-            if(target === 'jump') sendCommand("ARM_JUMP");
-        }
-
-        // --- BLUETOOTH ---
+        // ==========================================
+        // 5. BLUETOOTH CONNECTION
+        // ==========================================
         async function connectBLE() {
             try {
                 bleDevice = await navigator.bluetooth.requestDevice({
                     filters: [{ name: 'Blake_SpeedGate' }],
                     optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
                 });
+                
                 const server = await bleDevice.gatt.connect();
                 const service = await server.getPrimaryService('4fafc201-1fb5-459e-8fcc-c5c9c331914b');
                 bleChar = await service.getCharacteristic('beb5483e-36e1-4688-b7f5-ea07361b26a8');
                 
                 await bleChar.startNotifications();
+                
                 bleChar.addEventListener('characteristicvaluechanged', (e) => {
                     const val = new TextDecoder().decode(e.target.value);
-                    if(val !== "IDLE") handleTrigger(val);
+                    if (val !== "IDLE") {
+                        handleTrigger(val);
+                    }
                 });
                 
                 isConnected = true;
@@ -250,10 +314,18 @@
                 bleDevice.addEventListener('gattserverdisconnected', () => { 
                     isConnected = false; 
                     updateUIForConnection(false); 
-                    if(wakeLock) wakeLock.release();
+                    if (wakeLock) {
+                        wakeLock.release();
+                    }
                 });
-                setTimeout(() => navTo('timer'), 800);
-            } catch (err) { alert("Connect failed. Ensure Location/Bluetooth is on."); }
+                
+                setTimeout(() => {
+                    navTo('timer');
+                }, 800);
+                
+            } catch (err) { 
+                alert("Connect failed. Ensure Location and Bluetooth are on."); 
+            }
         }
 
         async function sendCommand(cmd) {
@@ -261,42 +333,75 @@
                 try {
                     const encoder = new TextEncoder();
                     await bleChar.writeValue(encoder.encode(cmd));
-                } catch(e) {}
+                } catch(e) { 
+                    console.log("Command failed to send to gate", e); 
+                }
             }
         }
 
         function updateUIForConnection(c) { 
-            document.getElementById('homeStatus').innerHTML = c ? "Connected ✅" : "Disconnected ❌"; 
-            document.getElementById('btnConnect').style.display = c ? 'none' : 'block'; 
-            document.getElementById('btnDisconnect').style.display = c ? 'block' : 'none'; 
+            if (c) {
+                document.getElementById('homeStatus').innerHTML = "Connected ✅";
+                document.getElementById('btnConnect').style.display = 'none';
+                document.getElementById('btnDisconnect').style.display = 'block';
+            } else {
+                document.getElementById('homeStatus').innerHTML = "Disconnected ❌";
+                document.getElementById('btnConnect').style.display = 'block';
+                document.getElementById('btnDisconnect').style.display = 'none';
+            }
         }
 
-        function disconnectBLE() { if(bleDevice) bleDevice.gatt.disconnect(); }
+        function disconnectBLE() { 
+            if (bleDevice) {
+                bleDevice.gatt.disconnect(); 
+            }
+        }
 
-        // --- UI TOGGLES ---
-        function setEventChip(name, el) {
-            document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
-            el.classList.add('active');
+        // ==========================================
+        // 6. UI TOGGLES & HELPERS
+        // ==========================================
+        function setEventChip(name, element) {
+            const chips = document.querySelectorAll('.chip');
+            for (let i = 0; i < chips.length; i++) {
+                chips[i].classList.remove('active');
+            }
+            
+            element.classList.add('active');
             document.getElementById('eventName').value = name;
             updatePBDisplay();
         }
 
-        function syncAthletes(el) {
-            const val = el.value;
-            document.querySelectorAll('.athlete-sync').forEach(s => s.value = val);
+        function syncAthletes(element) {
+            const val = element.value;
+            const selects = document.querySelectorAll('.athlete-sync');
+            
+            for (let i = 0; i < selects.length; i++) {
+                selects[i].value = val;
+            }
             updatePBDisplay();
         }
 
         function setTimerMode(mode) {
             timerMode = mode;
-            document.getElementById('btnStandard').className = mode === 'standard' ? 'btn-blue' : 'btn-dark';
-            document.getElementById('btnSplits').className = mode === 'splits' ? 'btn-blue' : 'btn-dark';
-            document.getElementById('splitsSetup').style.display = mode === 'splits' ? 'block' : 'none';
-            document.getElementById('liveSplits').style.display = mode === 'splits' ? 'block' : 'none';
+            
+            if (mode === 'standard') {
+                document.getElementById('btnStandard').className = 'btn-blue';
+                document.getElementById('btnSplits').className = 'btn-dark';
+                document.getElementById('splitsSetup').style.display = 'none';
+                document.getElementById('liveSplits').style.display = 'none';
+            } else {
+                document.getElementById('btnStandard').className = 'btn-dark';
+                document.getElementById('btnSplits').className = 'btn-blue';
+                document.getElementById('splitsSetup').style.display = 'block';
+                document.getElementById('liveSplits').style.display = 'block';
+            }
+            
             resetTimer();
         }
 
-        // --- ARMING SAFETIES ---
+        // ==========================================
+        // 7. ARMING SAFETIES
+        // ==========================================
         function armSprint() {
             isSprintArmed = true;
             document.getElementById('display').classList.add('armed');
@@ -310,72 +415,4 @@
             document.getElementById('display').classList.remove('armed');
             document.getElementById('btnArmSprint').className = "btn-dark";
             document.getElementById('btnArmSprint').innerHTML = "🔒 ARM SYSTEM";
-            document.getElementById('sprintArmStatus').innerHTML = "Disarmed - Gates Ignored";
-        }
-
-        function armJump() { 
-            document.getElementById('jumpStatus').innerHTML = "READY: JUMP WHEN READY"; 
-            document.getElementById('jumpStatus').style.color = "#00ff00"; 
-            sendCommand("ARM_JUMP"); 
-        }
-
-        // --- MASTER TRIGGER LOGIC ---
-        function handleTrigger(gate) {
-            if (gate.startsWith("JUMP:")) {
-                handleJumpResult(gate.split(":")[1]);
-                return;
-            }
-
-            if (!totalStartTime && gate === "GATE1") {
-                if (!isSprintArmed) return; // False Start Blocked
-                
-                totalStartTime = performance.now();
-                lapStartTime = totalStartTime;
-                splitTimes = [];
-                
-                document.getElementById('display').classList.remove('armed');
-                document.getElementById('lastRunBox').style.display = "none";
-                if ('vibrate' in navigator) navigator.vibrate(50);
-                
-                if(timerMode === 'splits') {
-                    document.getElementById('liveSplits').innerHTML = `<span style="color:#00ff00;">Lap 1: Running...</span>`;
-                }
-                
-                timerInterval = setInterval(() => {
-                    let now = performance.now();
-                    let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
-                    document.getElementById('display').innerHTML = totalTime; 
-
-                    if(timerMode === 'splits') {
-                        let currentLapTime = ((now - lapStartTime) / 1000).toFixed(3);
-                        let pastLaps = splitTimes.map((s, i) => `Lap ${i+1}: ${s}s`).join('<br>');
-                        let lapString = pastLaps ? pastLaps + `<br><span style="color:#00ff00;">Lap ${splitTimes.length + 1}: ${currentLapTime}s</span>` : `<span style="color:#00ff00;">Lap 1: ${currentLapTime}s</span>`;
-                        document.getElementById('liveSplits').innerHTML = lapString;
-                    }
-                }, 10);
-            } 
-            else if (totalStartTime) {
-                let now = performance.now();
-                let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
-                let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
-
-                if (timerMode === 'standard' && gate === "GATE2") {
-                    stopTimer(totalTime);
-                } 
-                else if (timerMode === 'splits' && gate === "GATE1") {
-                    if (parseFloat(lapTime) < 1.0) return; // Prevent double trigger
-                    
-                    splitTimes.push(lapTime); 
-                    lapStartTime = now;       
-                    if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
-                    
-                    let target = parseInt(document.getElementById('targetSplits').value);
-                    if (splitTimes.length >= target) {
-                        stopTimer(totalTime); 
-                    }
-                }
-            }
-        }
-
-        function handleJumpResult(height) {
-            document.getEleme
+            document.getElementById(
