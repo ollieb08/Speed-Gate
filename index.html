@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html>
 <head>
@@ -5,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding-bottom: 20px; transition: 0.3s; }
+        body { font-family: 'Segoe UI', sans-serif; background: #121212; color: white; text-align: center; margin: 0; padding-bottom: 20px; }
         .tabs { display: flex; background: #1e1e1e; border-bottom: 2px solid #333; position: sticky; top: 0; z-index: 1000; }
         .tab { flex: 1; padding: 15px 2px; cursor: pointer; color: #888; font-weight: bold; font-size: 0.8rem; transition: 0.2s; }
         .tab.active { color: #00ff00; border-bottom: 3px solid #00ff00; background: rgba(0,255,0,0.05); }
@@ -20,7 +21,6 @@
         input, select { width: 100%; padding: 14px; margin: 8px 0; border-radius: 8px; border: 1px solid #444; background: #2a2a2a; color: white; font-size: 1rem; box-sizing: border-box; }
         button { width: 100%; padding: 16px; border-radius: 10px; border: none; font-weight: bold; cursor: pointer; margin: 8px 0; font-size: 1rem; transition: 0.2s; }
         button:active { transform: scale(0.98); opacity: 0.8; }
-        button:disabled { opacity: 0.5; cursor: not-allowed; }
         
         .btn-blue { background: #007bff; color: white; }
         .btn-red { background: #ff4444; color: white; }
@@ -34,30 +34,19 @@
         .chip { padding: 8px 16px; background: #2a2a2a; border-radius: 20px; font-size: 0.85rem; color: #aaa; border: 1px solid #444; cursor: pointer; transition: 0.2s; }
         .chip:hover, .chip.active { background: #007bff; color: white; border-color: #007bff; }
         
-        /* Segmented Toggle */
-        .segmented-control { display: flex; background: #2a2a2a; border-radius: 10px; padding: 4px; margin-bottom: 10px; border: 1px solid #444; }
-        .segment { flex: 1; text-align: center; padding: 12px; cursor: pointer; border-radius: 8px; color: #888; font-weight: bold; font-size: 0.9rem; transition: 0.2s; }
-        .segment.active { background: #007bff; color: white; }
-
-        .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #333; font-size: 0.9rem; margin-top: 10px; font-weight:bold; }
+        .mode-toggle { display: flex; gap: 10px; margin-bottom: 10px; }
+        .mode-toggle button { margin: 0; padding: 12px; font-size: 0.9rem; }
+        .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #333; font-size: 0.9rem; margin-top: 10px; }
         .status-connected { background: rgba(0, 255, 0, 0.2); color: #00ff00; border: 1px solid #00ff00; }
         
-        .last-run { font-size: 1.1rem; color: #00ff00; background: #0a0a0a; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; font-weight: bold; position: relative;}
+        .last-run { font-size: 1.1rem; color: #00ff00; background: #0a0a0a; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; font-weight: bold; }
         .split-log { color: #aaa; font-size: 1.1rem; margin: 10px 0; text-align: left; background: #0a0a0a; padding: 12px; border-radius: 8px; font-family: monospace; border: 1px solid #222; line-height: 1.5; }
+        
         .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #333; text-align: left; }
         .btn-del { background: #ff4444; width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; color: white; border-radius: 6px; }
         
         h2 { margin-top: 0; color: #00ff00; text-transform: uppercase; letter-spacing: 1px; font-size: 1.2rem; }
         .section-label { text-align: left; font-size: 0.85rem; color: #aaa; text-transform: uppercase; margin-top: 15px; display: block; }
-
-        /* Landscape Scoreboard Mode */
-        @media (orientation: landscape) and (max-height: 500px) {
-            .tabs, .controls-hide-landscape { display: none !important; }
-            #page-timer { max-width: 100%; padding: 0; }
-            .card { border: none; background: transparent; padding: 5px; margin: 0;}
-            .timer { font-size: 15rem; margin: 0; }
-            .status-badge { margin-top: 0; }
-        }
     </style>
 </head>
 <body>
@@ -83,7 +72,7 @@
     </div>
 
     <div id="page-timer" class="page">
-        <div class="card controls-hide-landscape">
+        <div class="card">
             <div class="chip-container">
                 <div class="chip" onclick="setEventChip('10yd Split', this)">10yd</div>
                 <div class="chip" onclick="setEventChip('40yd Dash', this)">40yd</div>
@@ -97,19 +86,20 @@
         </div>
         
         <div class="card">
-            <div class="segmented-control controls-hide-landscape">
-                <div id="segStandard" class="segment active" onclick="setTimerMode('standard')">Standard</div>
-                <div id="segSplits" class="segment" onclick="setTimerMode('splits')">Splits (Laps)</div>
+            <div class="mode-toggle">
+                <button id="btnStandard" class="btn-blue" onclick="setTimerMode('standard')">Standard</button>
+                <button id="btnSplits" class="btn-dark" onclick="setTimerMode('splits')">Splits (Laps)</button>
             </div>
             
-            <div id="splitsSetup" class="controls-hide-landscape" style="display: none; text-align: left; margin-bottom: 10px;">
+            <div id="splitsSetup" style="display: none; text-align: left; margin-top: 10px;">
                 <label style="font-size: 0.85rem; color: #aaa;">Target Laps/Breaks:</label>
                 <input type="number" id="targetSplits" value="2" min="1">
             </div>
             
-            <button id="btnArmSprint" class="btn-dark controls-hide-landscape" onclick="armSprint()">🔒 ARM SYSTEM</button>
+            <button id="btnArmSprint" class="btn-dark" onclick="armSprint()">🔒 ARM SYSTEM</button>
             <div id="sprintArmStatus" style="font-size:0.85rem; color:#888; margin-top:5px; text-transform:uppercase;">Disarmed - Gates Ignored</div>
             
+            <div style="font-size: 0.8rem; color: #888; margin-top:10px; text-transform: uppercase;">Overall Time</div>
             <div class="timer" id="display">0.000</div>
             
             <div id="liveSplits" class="split-log" style="display: none;">Ready for Laps...</div>
@@ -120,7 +110,7 @@
                 <button id="btnDiscard" class="btn-red" style="padding:10px; font-size:0.9rem; margin-top:10px; display:none;" onclick="discardRun()">🗑️ DISCARD RUN</button>
             </div>
             
-            <button class="btn-red controls-hide-landscape" onclick="resetTimer()">RESET</button>
+            <button class="btn-red" onclick="resetTimer()">RESET TIMER</button>
         </div>
     </div>
 
@@ -132,7 +122,7 @@
         <div class="card">
             <h2 style="color:#00eaff; margin:0;">VERTICAL JUMP</h2>
             <div class="jump-display" id="jumpResult">0.0<span style="font-size:1.5rem;">in</span></div>
-            <button id="btnArmJump" class="btn-cyan" onclick="armJump()">🚀 ARM JUMP</button>
+            <button id="btnArmJump" class="btn-cyan" onclick="armJump()">🚀 ARM JUMP MODE</button>
             <div id="jumpStatus" style="margin-top:10px; color:#aaa; font-weight:bold;">Status: Standby</div>
         </div>
     </div>
@@ -160,22 +150,23 @@
         <div class="card">
             <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
             <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 3.8 (Armed Safeties & Discard)</div>
+            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 3.9 (Expanded Architecture & Safeguards)</div>
         </div>
     </div>
 
     <script>
+        // Core Variables
         let totalStartTime, lapStartTime, timerInterval, bleDevice, bleChar, wakeLock;
         let isConnected = false;
         let timerMode = 'standard'; 
         let splitTimes = [];
         let isSprintArmed = false;
         
-        // Upload & Discard tracking
+        // Discard / Upload Tracking
         let sheetUploadTimeout;
-        let lastRunPayload = null;
         let lastPBRevertData = null;
-
+        
+        // Data Storage
         let roster = JSON.parse(localStorage.getItem('roster')) || [];
         let pbs = JSON.parse(localStorage.getItem('pbs')) || {}; 
         let sheetsUrl = localStorage.getItem('sheetsUrl') || "";
@@ -184,29 +175,27 @@
             document.getElementById('sheetsUrlInput').value = sheetsUrl;
             renderRoster();
             setTimerMode('standard'); 
-            document.getElementById('eventName').value = "40yd Dash"; // Default
-            updatePBDisplay();
+            document.getElementById('eventName').value = "40yd Dash"; // Default event
         };
 
-        // Screen Wake Lock
+        // Wake Lock to keep screen alive
         async function requestWakeLock() {
             try {
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen');
-                    console.log('Screen Wake Lock active');
                 }
             } catch (err) { console.log("Wake Lock error:", err); }
         }
 
-        // Voice Announcer
+        // Voice TTS
         function speakTime(timeStr) {
             if ('speechSynthesis' in window) {
-                let text = timeStr.replace('.', ' point ');
-                let msg = new SpeechSynthesisUtterance(text);
+                let msg = new SpeechSynthesisUtterance(timeStr.replace('.', ' point '));
                 window.speechSynthesis.speak(msg);
             }
         }
 
+        // Navigation
         function navTo(target) {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -216,9 +205,10 @@
             if(target === 'pb') renderPBs();
             if(target === 'settings') renderRoster();
             if(target === 'timer') { updateRosterSelect(); sendCommand("SET_SPRINT"); disarmSprint(); }
-            if(target === 'jump') { sendCommand("ARM_JUMP"); }
+            if(target === 'jump') sendCommand("ARM_JUMP");
         }
 
+        // Bluetooth Setup
         async function connectBLE() {
             try {
                 bleDevice = await navigator.bluetooth.requestDevice({
@@ -237,7 +227,7 @@
                 
                 isConnected = true;
                 updateUIForConnection(true);
-                requestWakeLock();
+                requestWakeLock(); // Start screen lock
                 
                 bleDevice.addEventListener('gattserverdisconnected', () => { 
                     isConnected = false; 
@@ -273,18 +263,18 @@
 
         function setTimerMode(mode) {
             timerMode = mode;
-            document.getElementById('segStandard').className = mode === 'standard' ? 'segment active' : 'segment';
-            document.getElementById('segSplits').className = mode === 'splits' ? 'segment active' : 'segment';
+            document.getElementById('btnStandard').className = mode === 'standard' ? 'btn-blue' : 'btn-dark';
+            document.getElementById('btnSplits').className = mode === 'splits' ? 'btn-blue' : 'btn-dark';
             document.getElementById('splitsSetup').style.display = mode === 'splits' ? 'block' : 'none';
             document.getElementById('liveSplits').style.display = mode === 'splits' ? 'block' : 'none';
             resetTimer();
         }
 
-        // Arming Logic for Sprints
+        // Arming Logics
         function armSprint() {
             isSprintArmed = true;
             document.getElementById('display').classList.add('armed');
-            document.getElementById('btnArmSprint').className = "btn-amber controls-hide-landscape";
+            document.getElementById('btnArmSprint').className = "btn-amber";
             document.getElementById('btnArmSprint').innerHTML = "⏳ ARMED - WAITING FOR GATE";
             document.getElementById('sprintArmStatus').innerHTML = "<span style='color:#ffcc00;'>System Live</span>";
         }
@@ -292,64 +282,74 @@
         function disarmSprint() {
             isSprintArmed = false;
             document.getElementById('display').classList.remove('armed');
-            document.getElementById('btnArmSprint').className = "btn-dark controls-hide-landscape";
+            document.getElementById('btnArmSprint').className = "btn-dark";
             document.getElementById('btnArmSprint').innerHTML = "🔒 ARM SYSTEM";
             document.getElementById('sprintArmStatus').innerHTML = "Disarmed - Gates Ignored";
         }
 
-        // Master Trigger Logic
+        // Master Trigger Processing
         function handleTrigger(gate) {
-            // Jump processing completely ignores Sprint Arm logic
+            // 1. Jump Logic (Ignores sprint arms)
             if (gate.startsWith("JUMP:")) {
                 const height = gate.split(":")[1];
                 handleJumpResult(height);
                 return;
             }
 
-            // SPRINT LOGIC - Must be Armed to Start
+            // 2. Sprint Start Logic (Gate 1 First Break)
             if (!totalStartTime && gate === "GATE1") {
-                if (!isSprintArmed) return; // BLOCKED! Safety caught the false start.
+                if (!isSprintArmed) return; // Safety block!
                 
                 totalStartTime = performance.now();
                 lapStartTime = totalStartTime;
                 splitTimes = [];
                 
-                // UX Feedback
-                document.getElementById('display').classList.remove('armed');
-                document.getElementById('display').style.color = "#ffffff"; // White while running
+                document.getElementById('display').classList.remove('armed'); // Remove amber color
                 document.getElementById('lastRunBox').style.display = "none";
                 if ('vibrate' in navigator) navigator.vibrate(50);
                 
-                if(timerMode === 'splits') document.getElementById('liveSplits').innerHTML = `<span style="color:#00ff00;">Lap 1: Running...</span>`;
+                if(timerMode === 'splits') {
+                    document.getElementById('liveSplits').innerHTML = `<span style="color:#00ff00;">Lap 1: Running...</span>`;
+                }
                 
                 timerInterval = setInterval(() => {
                     let now = performance.now();
                     let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
-                    document.getElementById('display').innerHTML = totalTime;
+                    document.getElementById('display').innerHTML = totalTime; 
 
                     if(timerMode === 'splits') {
                         let currentLapTime = ((now - lapStartTime) / 1000).toFixed(3);
                         let pastLaps = splitTimes.map((s, i) => `Lap ${i+1}: ${s}s`).join('<br>');
-                        document.getElementById('liveSplits').innerHTML = pastLaps ? pastLaps + `<br><span style="color:#00ff00;">Lap ${splitTimes.length + 1}: ${currentLapTime}s</span>` : `<span style="color:#00ff00;">Lap 1: ${currentLapTime}s</span>`;
+                        let lapString = pastLaps ? pastLaps + `<br><span style="color:#00ff00;">Lap ${splitTimes.length + 1}: ${currentLapTime}s</span>` : `<span style="color:#00ff00;">Lap 1: ${currentLapTime}s</span>`;
+                        document.getElementById('liveSplits').innerHTML = lapString;
                     }
                 }, 10);
             } 
+            // 3. End Timing / Split Logic
             else if (totalStartTime) {
                 let now = performance.now();
                 let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
                 let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
 
-                if (timerMode === 'standard' && gate === "GATE2") stopTimer(totalTime);
+                if (timerMode === 'standard' && gate === "GATE2") {
+                    stopTimer(totalTime);
+                } 
                 else if (timerMode === 'splits' && gate === "GATE1") {
-                    if (parseFloat(lapTime) < 1.0) return; 
-                    splitTimes.push(lapTime);
-                    lapStartTime = now;
+                    if (parseFloat(lapTime) < 1.0) return; // Prevents double-trigger
+                    
+                    splitTimes.push(lapTime); 
+                    lapStartTime = now;       
                     if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
-                    if (splitTimes.length >= parseInt(document.getElementById('targetSplits').value)) stopTimer(totalTime);
+                    
+                    let target = parseInt(document.getElementById('targetSplits').value);
+                    if (splitTimes.length >= target) {
+                        stopTimer(totalTime); 
+                    }
                 }
             }
         }
 
+        // Processing Logic
         function handleJumpResult(height) {
             document.getElementById('jumpResult').innerHTML = height + `<span style="font-size:1.5rem;">in</span>`;
             document.getElementById('jumpStatus').innerHTML = "Landed! Resetting...";
@@ -359,4 +359,18 @@
             const athlete = document.getElementById('jumpAthleteSelect').value || "Guest";
             const event = "Vertical Jump";
             
-            chec
+            checkAndSetPB(athlete, event, height, true);
+            setupDelayedUpload(athlete, event, height, "N/A");
+        }
+
+        function stopTimer(finalTotalTimeStr) {
+            clearInterval(timerInterval);
+            if ('vibrate' in navigator) navigator.vibrate([100, 100, 100]);
+            speakTime(finalTotalTimeStr);
+            disarmSprint(); // Auto-disarm after run
+
+            const athlete = document.getElementById('athleteSelect').value || "Guest";
+            const event = document.getElementById('eventName').value || "General";
+            const finalTotalTime = parseFloat(finalTotalTimeStr).toFixed(3);
+
+            let isPB = chec
