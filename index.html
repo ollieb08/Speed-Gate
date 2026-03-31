@@ -68,6 +68,7 @@
             </div>
             <div id="homeStatus" class="status-badge">Disconnected ❌</div>
         </div>
+        <div style="color:#555; font-size:0.75rem; margin-top: 20px; font-weight: bold;">v4.3</div>
     </div>
 
     <div id="page-timer" class="page">
@@ -149,7 +150,7 @@
         <div class="card">
             <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
             <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.1 (Fully Expanded Architecture)</div>
+            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.3 (Diagnostic Error Catching)</div>
         </div>
     </div>
 
@@ -252,7 +253,7 @@
                 renderRoster();
             }
             if (target === 'timer') { 
-                renderRoster(); // Safely updates dropdowns without calling a missing function
+                renderRoster(); 
                 sendCommand("SET_SPRINT"); 
                 disarmSprint(); 
             }
@@ -334,7 +335,7 @@
                     const encoder = new TextEncoder();
                     await bleChar.writeValue(encoder.encode(cmd));
                 } catch(e) { 
-                    console.log("Command failed to send to gate", e); 
+                    alert("⚠️ BLUETOOTH ERROR: The phone failed to send the signal to the gate. Error details: " + e); 
                 }
             }
         }
@@ -408,6 +409,7 @@
             document.getElementById('btnArmSprint').className = "btn-amber";
             document.getElementById('btnArmSprint').innerHTML = "⏳ ARMED - WAITING FOR GATE";
             document.getElementById('sprintArmStatus').innerHTML = "<span style='color:#ffcc00;'>System Live</span>";
+            sendCommand("ARM_SPRINT");
         }
         
         function disarmSprint() {
@@ -416,6 +418,7 @@
             document.getElementById('btnArmSprint').className = "btn-dark";
             document.getElementById('btnArmSprint').innerHTML = "🔒 ARM SYSTEM";
             document.getElementById('sprintArmStatus').innerHTML = "Disarmed - Gates Ignored";
+            sendCommand("DISARM");
         }
 
         function armJump() { 
