@@ -31,16 +31,16 @@
         .mode-toggle { display: flex; gap: 10px; margin-bottom: 15px; }
         .mode-toggle button { margin: 0; padding: 12px; font-size: 0.9rem; }
         .status-badge { display: inline-block; padding: 8px 15px; border-radius: 20px; background: #333; font-size: 0.9rem; margin-top: 10px; }
-        .status-connected { background: rgba(0, 255, 0, 0.2); color: #00ff00; border: 1px solid #00ff00; }
         
         .last-run { font-size: 1.1rem; color: #00ff00; background: #0a0a0a; padding: 15px; border-radius: 8px; margin: 10px 0; border: 1px solid #333; font-weight: bold; }
         .split-log { color: #aaa; font-size: 1.1rem; margin: 10px 0; text-align: left; background: #0a0a0a; padding: 12px; border-radius: 8px; font-family: monospace; border: 1px solid #222; line-height: 1.5; }
         
         .roster-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #333; text-align: left; }
+        .profile-badge { font-size: 0.75rem; background: #444; color: #ddd; padding: 3px 6px; border-radius: 4px; margin-left: 8px; font-weight: normal; }
         .btn-del { background: #ff4444; width: auto; padding: 6px 12px; font-size: 0.8rem; margin: 0; color: white; border-radius: 6px; }
         
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         h2 { margin-top: 0; color: #00ff00; text-transform: uppercase; letter-spacing: 1px; font-size: 1.2rem; }
-        .section-label { text-align: left; font-size: 0.85rem; color: #aaa; text-transform: uppercase; margin-top: 15px; display: block; }
     </style>
 </head>
 <body>
@@ -63,7 +63,7 @@
             </div>
             <div id="homeStatus" class="status-badge">Disconnected ❌</div>
         </div>
-        <div style="color:#555; font-size:0.75rem; margin-top: 20px; font-weight: bold;">v4.5</div>
+        <div style="color:#555; font-size:0.75rem; margin-top: 20px; font-weight: bold;">v4.6 - Athlete Profiles</div>
     </div>
 
     <div id="page-timer" class="page">
@@ -117,6 +117,7 @@
             
             <div id="lastRunBox" class="last-run" style="display:none;">
                 <div id="lastRunText"></div>
+                <div id="physicsMetrics" style="font-size: 0.9rem; color: #00eaff; margin-top: 8px; font-weight: normal;"></div>
                 <div id="uploadStatus" style="font-size:0.85rem; color:#aaa; margin-top:10px; font-weight:normal;"></div>
                 <button id="btnDiscard" class="btn-red" style="padding:10px; font-size:0.9rem; margin-top:10px; display:none;" onclick="discardRun()">🗑️ DISCARD RUN</button>
             </div>
@@ -133,6 +134,7 @@
         <div class="card">
             <h2 style="color:#00eaff; margin:0;">VERTICAL JUMP</h2>
             <div class="jump-display" id="jumpResult">0.0<span style="font-size:1.5rem;">in</span></div>
+            <div id="jumpPhysicsMetrics" style="font-size: 1rem; color: #ffcc00; margin-bottom: 15px; font-weight: bold; min-height: 20px;"></div>
             <button id="btnArmJump" class="btn-cyan" onclick="armJump()">🚀 ARM JUMP MODE</button>
             <div id="jumpStatus" style="margin-top:10px; color:#aaa; font-weight:bold;">Status: Standby</div>
         </div>
@@ -147,12 +149,19 @@
 
     <div id="page-settings" class="page">
         <div class="card" style="text-align: left;">
-            <h2>Roster Management</h2>
-            <div style="display: flex; gap: 10px;">
-                <input type="text" id="newName" placeholder="Athlete Name" style="margin:0;">
-                <button class="btn-green" style="width: auto; margin:0; padding: 0 20px;" onclick="addAthlete()">ADD</button>
+            <h2>Athlete Database</h2>
+            
+            <div style="background: #2a2a2a; padding: 15px; border-radius: 8px; margin-bottom: 15px;">
+                <input type="text" id="newName" placeholder="Athlete Name" style="margin-top:0;">
+                <div class="grid-2">
+                    <input type="number" id="newWeight" placeholder="Weight (lbs)">
+                    <input type="number" id="newHeight" placeholder="Height (in)">
+                </div>
+                <input type="text" id="newSport" placeholder="Primary Sport" style="margin-bottom:0;">
+                <button class="btn-green" onclick="addAthlete()" style="margin-top: 10px;">💾 ADD / UPDATE PROFILE</button>
             </div>
-            <div id="rosterList" style="margin-top:15px; border-top:1px solid #333; max-height: 200px; overflow-y: auto;"></div>
+
+            <div id="rosterList" style="margin-top:15px; border-top:1px solid #333; max-height: 250px; overflow-y: auto;"></div>
         </div>
         <div class="card" style="text-align: left;">
             <h2>Google Sheets Sync</h2>
@@ -161,7 +170,7 @@
         <div class="card">
             <button class="btn-dark" onclick="clearPBs()">Clear All PB Data</button>
             <button class="btn-red" onclick="factoryReset()">Factory Reset App</button>
-            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.5 (Edge-Triggered Split Engine)</div>
+            <div style="color:#555; font-size:0.7rem; margin-top: 15px;">Version 4.6 (Deep Data Profiles)</div>
         </div>
     </div>
 
@@ -170,22 +179,38 @@
         // 1. DATA STORAGE & INITIALIZATION
         // ==========================================
         let roster = ["Guest"];
+        let profiles = {}; // Stores {weight, height, sport}
         let pbs = {};
         let sheetsUrl = "";
 
         try {
             let savedRoster = localStorage.getItem('roster');
-            if (savedRoster) roster = JSON.parse(savedRoster);
-            if (!Array.isArray(roster)) roster = ["Guest"];
+            if (savedRoster) {
+                roster = JSON.parse(savedRoster);
+            }
+            if (!Array.isArray(roster)) {
+                roster = ["Guest"];
+            }
+            
+            // Migrate to Profile system safely
+            let savedProfiles = localStorage.getItem('profiles');
+            if (savedProfiles) {
+                profiles = JSON.parse(savedProfiles);
+            }
             
             let savedPBs = localStorage.getItem('pbs');
-            if (savedPBs) pbs = JSON.parse(savedPBs);
-            if (typeof pbs !== 'object' || Array.isArray(pbs)) pbs = {};
+            if (savedPBs) {
+                pbs = JSON.parse(savedPBs);
+            }
+            if (typeof pbs !== 'object' || Array.isArray(pbs)) {
+                pbs = {};
+            }
             
             sheetsUrl = localStorage.getItem('sheetsUrl') || "";
         } catch (e) {
-            console.warn("Cleared corrupted data block to prevent crash.");
+            console.warn("Cleared corrupted data block.");
             roster = ["Guest"];
+            profiles = {};
             pbs = {};
         }
 
@@ -198,7 +223,7 @@
                 }
             } 
             catch (e) { 
-                console.warn("Storage blocked by device."); 
+                console.warn("Storage blocked."); 
             }
         }
 
@@ -243,35 +268,38 @@
             document.getElementById('page-' + target).classList.add('active');
             document.getElementById('tab-' + target).classList.add('active');
             
-            if (target === 'pb') renderPBs();
-            if (target === 'settings') renderRoster();
+            if (target === 'pb') {
+                renderPBs();
+            }
+            if (target === 'settings') {
+                renderRoster();
+            }
             if (target === 'timer') { 
                 renderRoster(); 
                 sendCommand("SET_SPRINT"); 
                 disarmSprint(); 
             }
-            if (target === 'jump') {
-                renderRoster();
-                sendCommand("ARM_JUMP");
+            if (target === 'jump') { 
+                renderRoster(); 
+                sendCommand("ARM_JUMP"); 
             }
         }
 
-        // ==========================================
-        // 4. HARDWARE FEATURES
-        // ==========================================
-        async function requestWakeLock() {
+        async function requestWakeLock() { 
             try { 
                 if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock = await navigator.wakeLock.request('screen'); 
                 }
-            } catch (err) { }
+            } catch (err) {
+                console.log("Wake Lock error", err);
+            } 
         }
 
-        function speakTime(timeStr) {
+        function speakTime(timeStr) { 
             if ('speechSynthesis' in window) {
                 let spokenText = timeStr.replace('.', ' point ');
                 let msg = new SpeechSynthesisUtterance(spokenText);
-                window.speechSynthesis.speak(msg);
+                window.speechSynthesis.speak(msg); 
             }
         }
 
@@ -280,9 +308,9 @@
         // ==========================================
         async function connectBLE() {
             try {
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'Blake_SpeedGate' }],
-                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b']
+                bleDevice = await navigator.bluetooth.requestDevice({ 
+                    filters: [{ name: 'Blake_SpeedGate' }], 
+                    optionalServices: ['4fafc201-1fb5-459e-8fcc-c5c9c331914b'] 
                 });
                 
                 const server = await bleDevice.gatt.connect();
@@ -298,33 +326,39 @@
                     }
                 });
                 
-                isConnected = true;
-                updateUIForConnection(true);
+                isConnected = true; 
+                updateUIForConnection(true); 
                 requestWakeLock();
                 
                 bleDevice.addEventListener('gattserverdisconnected', () => { 
                     isConnected = false; 
                     updateUIForConnection(false); 
-                    if (wakeLock) wakeLock.release();
+                    if (wakeLock) {
+                        wakeLock.release();
+                    } 
                 });
                 
-                setTimeout(() => { navTo('timer'); }, 800);
+                setTimeout(() => { 
+                    navTo('timer'); 
+                }, 800);
                 
             } catch (err) { 
                 alert("Connect failed. Ensure Location and Bluetooth are on."); 
             }
         }
 
-        async function sendCommand(cmd) {
-            if (bleChar && isConnected) {
-                try {
+        async function sendCommand(cmd) { 
+            if (bleChar && isConnected) { 
+                try { 
                     const encoder = new TextEncoder();
-                    await bleChar.writeValue(encoder.encode(cmd));
-                } catch(e) { }
-            }
+                    await bleChar.writeValue(encoder.encode(cmd)); 
+                } catch(e) {
+                    console.log("Command failed", e);
+                } 
+            } 
         }
 
-        function updateUIForConnection(c) { 
+        function updateUIForConnection(c) {
             if (c) {
                 document.getElementById('homeStatus').innerHTML = "Connected ✅";
                 document.getElementById('btnConnect').style.display = 'none';
@@ -337,11 +371,13 @@
         }
 
         function disconnectBLE() { 
-            if (bleDevice) bleDevice.gatt.disconnect(); 
+            if (bleDevice) {
+                bleDevice.gatt.disconnect(); 
+            }
         }
 
         // ==========================================
-        // 6. UI TOGGLES & DROPDOWNS
+        // 6. UI TOGGLES & EVENT SYNC
         // ==========================================
         function handleEventSync() {
             if (timerMode === 'standard') {
@@ -349,24 +385,31 @@
                 if (val === 'Custom') {
                     document.getElementById('customStandard').style.display = 'block';
                     let customVal = document.getElementById('customStandard').value.trim();
-                    document.getElementById('eventName').value = customVal !== "" ? customVal : "Custom Event";
+                    if (customVal !== "") {
+                        document.getElementById('eventName').value = customVal;
+                    } else {
+                        document.getElementById('eventName').value = "Custom Event";
+                    }
                 } else {
                     document.getElementById('customStandard').style.display = 'none';
                     document.getElementById('eventName').value = val;
                 }
-            } else if (timerMode === 'splits') {
+            } else {
                 let dropdown = document.getElementById('splitDropdown');
                 let val = dropdown.value;
-                let laps = dropdown.options[dropdown.selectedIndex].getAttribute('data-laps');
-                
                 if (val === 'Custom') {
                     document.getElementById('customSplit').style.display = 'block';
                     document.getElementById('splitsSetup').style.display = 'block';
                     let customVal = document.getElementById('customSplit').value.trim();
-                    document.getElementById('eventName').value = customVal !== "" ? customVal : "Custom Laps";
+                    if (customVal !== "") {
+                        document.getElementById('eventName').value = customVal;
+                    } else {
+                        document.getElementById('eventName').value = "Custom Laps";
+                    }
                 } else {
                     document.getElementById('customSplit').style.display = 'none';
                     document.getElementById('splitsSetup').style.display = 'none';
+                    let laps = dropdown.options[dropdown.selectedIndex].getAttribute('data-laps');
                     document.getElementById('targetSplits').value = laps;
                     document.getElementById('eventName').value = val;
                 }
@@ -400,7 +443,7 @@
                 document.getElementById('liveSplits').style.display = 'block';
             }
             
-            handleEventSync();
+            handleEventSync(); 
             resetTimer();
         }
 
@@ -408,7 +451,7 @@
         // 7. ARMING SAFETIES
         // ==========================================
         function armSprint() {
-            isSprintArmed = true;
+            isSprintArmed = true; 
             document.getElementById('display').classList.add('armed');
             document.getElementById('btnArmSprint').className = "btn-amber";
             document.getElementById('btnArmSprint').innerHTML = "⏳ ARMED - WAITING FOR GATE";
@@ -417,7 +460,7 @@
         }
         
         function disarmSprint() {
-            isSprintArmed = false;
+            isSprintArmed = false; 
             document.getElementById('display').classList.remove('armed');
             document.getElementById('btnArmSprint').className = "btn-dark";
             document.getElementById('btnArmSprint').innerHTML = "🔒 ARM SYSTEM";
@@ -428,6 +471,7 @@
         function armJump() { 
             document.getElementById('jumpStatus').innerHTML = "READY: JUMP WHEN READY"; 
             document.getElementById('jumpStatus').style.color = "#00ff00"; 
+            document.getElementById('jumpPhysicsMetrics').innerHTML = ""; 
             sendCommand("ARM_JUMP"); 
         }
 
@@ -435,29 +479,30 @@
         // 8. MASTER TRIGGER LOGIC
         // ==========================================
         function handleTrigger(rawGateData) {
-            // MAGIC FIX: Clean invisible bytes from Bluetooth string
+            // Clean out invisible bluetooth characters
             let gate = rawGateData.replace(/[\0\r\n]/g, '').trim();
 
             if (gate.startsWith("JUMP:")) {
                 let height = gate.split(":")[1];
-                handleJumpResult(height);
+                handleJumpResult(height); 
                 return;
             }
 
-            // START TIMER LOGIC
             if (totalStartTime === null && gate === "GATE1") {
                 if (isSprintArmed === false) {
                     return; 
                 }
                 
-                totalStartTime = performance.now();
-                lapStartTime = totalStartTime;
+                totalStartTime = performance.now(); 
+                lapStartTime = totalStartTime; 
                 splitTimes = [];
                 
                 document.getElementById('display').classList.remove('armed');
                 document.getElementById('lastRunBox').style.display = "none";
                 
-                if ('vibrate' in navigator) navigator.vibrate(50);
+                if ('vibrate' in navigator) {
+                    navigator.vibrate(50);
+                }
                 
                 if (timerMode === 'splits') {
                     document.getElementById('liveSplits').innerHTML = `<span style="color:#00ff00;">Lap 1: Running...</span>`;
@@ -466,8 +511,8 @@
                 timerInterval = setInterval(() => {
                     let now = performance.now();
                     let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
-                    document.getElementById('display').innerHTML = totalTime; 
-
+                    document.getElementById('display').innerHTML = totalTime;
+                    
                     if (timerMode === 'splits') {
                         let currentLapTime = ((now - lapStartTime) / 1000).toFixed(3);
                         let lapString = "";
@@ -480,36 +525,30 @@
                     }
                 }, 10);
             } 
-            
-            // RUNNING LOGIC
             else if (totalStartTime !== null) {
                 let now = performance.now();
                 let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
                 let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
-
-                // Check if this is a 1-gate drill
                 let isShuttle = (document.getElementById('eventName').value === "5-10-5 Shuttle");
 
-                // STANDARD FINISH LOGIC
                 if (timerMode === 'standard') {
-                    // Stop if Gate 2 breaks, OR if Gate 1 breaks during a 5-10-5 Shuttle
                     if (gate === "GATE2" || (isShuttle && gate === "GATE1")) {
-                        if (parseFloat(totalTime) > 1.5) { // Ensure athlete cleared start line
+                        if (parseFloat(totalTime) > 1.5) {
                             stopTimer(totalTime);
                         }
                     }
                 } 
-                
-                // LAP / SPLIT LOGIC
                 else if (timerMode === 'splits' && gate === "GATE1") {
                     if (parseFloat(lapTime) < 1.0) {
-                        return; // Prevent laser bouncing
+                        return; 
                     }
                     
                     splitTimes.push(lapTime); 
                     lapStartTime = now;       
                     
-                    if ('vibrate' in navigator) navigator.vibrate([50, 50, 50]);
+                    if ('vibrate' in navigator) {
+                        navigator.vibrate([50, 50, 50]);
+                    }
                     
                     let target = parseInt(document.getElementById('targetSplits').value);
                     if (splitTimes.length >= target) {
@@ -520,36 +559,91 @@
         }
 
         // ==========================================
-        // 9. PROCESSING RESULTS
+        // 9. PROCESSING & ADVANCED PHYSICS
         // ==========================================
-        function handleJumpResult(height) {
-            document.getElementById('jumpResult').innerHTML = height + `<span style="font-size:1.5rem;">in</span>`;
+        function handleJumpResult(heightStr) {
+            let heightInches = parseFloat(heightStr);
+            document.getElementById('jumpResult').innerHTML = heightInches + `<span style="font-size:1.5rem;">in</span>`;
             document.getElementById('jumpStatus').innerHTML = "Landed! Resetting...";
             document.getElementById('jumpStatus').style.color = "#aaa";
-            speakTime(height + " inches");
+            
+            speakTime(heightStr + " inches");
 
             const athlete = document.getElementById('jumpAthleteSelect').value || "Guest";
-            const event = "Vertical Jump";
+            checkAndSetPB(athlete, "Vertical Jump", heightInches, true);
+
+            // PHYSICS: Peak Power Output (Sayers Equation)
+            let metricsText = "";
+            let peakPower = "";
             
-            checkAndSetPB(athlete, event, height, true);
-            setupDelayedUpload(athlete, event, height, "N/A");
+            if (athlete !== "Guest" && profiles[athlete] && profiles[athlete].weight) {
+                let weightKg = parseFloat(profiles[athlete].weight) / 2.2046;
+                let heightCm = heightInches * 2.54;
+                
+                // Sayers Equation for Peak Power (Watts)
+                let papw = Math.round((60.7 * heightCm) + (45.3 * weightKg) - 2055);
+                peakPower = papw + "W";
+                metricsText = `⚡ Peak Power Output: ${papw} Watts`;
+                
+                document.getElementById('jumpPhysicsMetrics').innerHTML = metricsText;
+            } else {
+                document.getElementById('jumpPhysicsMetrics').innerHTML = "";
+            }
+
+            setupDelayedUpload(athlete, "Vertical Jump", heightInches, "N/A", peakPower, "");
         }
 
         function stopTimer(finalTotalTimeStr) {
             clearInterval(timerInterval);
-            if ('vibrate' in navigator) navigator.vibrate([100, 100, 100]);
+            
+            if ('vibrate' in navigator) {
+                navigator.vibrate([100, 100, 100]);
+            }
+            
             speakTime(finalTotalTimeStr);
             disarmSprint(); 
 
             const athlete = document.getElementById('athleteSelect').value || "Guest";
             const event = document.getElementById('eventName').value || "General";
-            const finalTotalTime = parseFloat(finalTotalTimeStr).toFixed(3);
+            const finalTotalTime = parseFloat(finalTotalTimeStr);
 
-            let isPB = checkAndSetPB(athlete, event, finalTotalTime, false);
+            let isPB = checkAndSetPB(athlete, event, finalTotalTime.toFixed(3), false);
+
+            // PHYSICS: Momentum & Velocity
+            let momentumText = "";
+            let momentumVal = "";
+            
+            if (athlete !== "Guest" && profiles[athlete] && profiles[athlete].weight) {
+                let weightKg = parseFloat(profiles[athlete].weight) / 2.2046;
+                let distanceMeters = 0;
+                
+                if (event === "10yd Split" || event === "Fly-10") {
+                    distanceMeters = 9.144;
+                } else if (event === "40yd Dash") {
+                    distanceMeters = 36.576;
+                } else if (event === "5-10-5 Shuttle") {
+                    distanceMeters = 18.288;
+                }
+                
+                if (distanceMeters > 0) {
+                    let velocity = distanceMeters / finalTotalTime;
+                    let momentum = Math.round(weightKg * velocity);
+                    
+                    momentumVal = momentum;
+                    momentumText = `Velocity: ${velocity.toFixed(2)} m/s | Momentum: ${momentum} kg·m/s`;
+                    
+                    document.getElementById('physicsMetrics').innerHTML = momentumText;
+                } else {
+                    document.getElementById('physicsMetrics').innerHTML = "";
+                }
+            } else {
+                document.getElementById('physicsMetrics').innerHTML = "";
+            }
 
             const lastBox = document.getElementById('lastRunBox');
-            let textHtml = `<strong>${athlete}: Total ${finalTotalTime}s</strong> ${isPB ? '🔥 PB!' : ''}`;
+            let textHtml = `<strong>${athlete}: Total ${finalTotalTime.toFixed(3)}s</strong> ${isPB ? '🔥 PB!' : ''}`;
             
+            let splitsData = "";
             if (timerMode === 'splits') {
                 let splitHtml = "";
                 for (let i = 0; i < splitTimes.length; i++) {
@@ -559,41 +653,55 @@
                 
                 let average = (finalTotalTime / splitTimes.length).toFixed(3);
                 textHtml += `<br><span style="font-size:0.9rem; color:#aaa;">Average Lap: ${average}s</span>`;
+                
+                splitsData = splitTimes.join('|');
             }
             
             document.getElementById('lastRunText').innerHTML = textHtml;
             lastBox.style.display = "block";
             totalStartTime = null;
 
-            let splitsData = "";
-            if (timerMode === 'splits') {
-                splitsData = splitTimes.join('|');
-            }
-            
-            setupDelayedUpload(athlete, event, finalTotalTime, splitsData);
+            setupDelayedUpload(athlete, event, finalTotalTime.toFixed(3), splitsData, "", momentumVal);
         }
 
         function checkAndSetPB(athlete, event, score, isJump) {
-            let isNewPB = false;
+            let isNewPB = false; 
             lastPBRevertData = null;
-
+            
             if (athlete !== "Guest") {
-                if (!pbs[athlete]) pbs[athlete] = {};
+                if (!pbs[athlete]) {
+                    pbs[athlete] = {};
+                }
                 
                 let currentScore = null;
-                if (pbs[athlete][event]) currentScore = parseFloat(pbs[athlete][event]);
+                if (pbs[athlete][event]) {
+                    currentScore = parseFloat(pbs[athlete][event]);
+                }
                 
                 let newScore = parseFloat(score);
                 let beatsPB = false;
                 
-                if (isJump) beatsPB = (currentScore === null || newScore > currentScore);
-                else beatsPB = (currentScore === null || newScore < currentScore);
+                if (isJump) {
+                    if (currentScore === null || newScore > currentScore) {
+                        beatsPB = true;
+                    }
+                } else {
+                    if (currentScore === null || newScore < currentScore) {
+                        beatsPB = true;
+                    }
+                }
 
                 if (beatsPB) {
-                    lastPBRevertData = { athlete: athlete, event: event, oldScore: pbs[athlete][event] }; 
-                    pbs[athlete][event] = score;
-                    saveLocal('pbs', pbs);
-                    isNewPB = true;
+                    lastPBRevertData = { 
+                        athlete: athlete, 
+                        event: event, 
+                        oldScore: pbs[athlete][event] 
+                    }; 
+                    
+                    pbs[athlete][event] = score; 
+                    saveLocal('pbs', pbs); 
+                    
+                    isNewPB = true; 
                     updatePBDisplay();
                 }
             }
@@ -601,11 +709,12 @@
         }
 
         // ==========================================
-        // 10. UPLOAD & DISCARD
+        // 10. GOOGLE SHEETS UPLOAD
         // ==========================================
-        function setupDelayedUpload(athlete, event, time, splits) {
+        function setupDelayedUpload(athlete, event, time, splits, power, momentum) {
             document.getElementById('btnDiscard').style.display = 'inline-block';
             document.getElementById('uploadStatus').innerHTML = "⏳ Uploading to Sheets in 5s...";
+            
             clearTimeout(sheetUploadTimeout);
             
             sheetUploadTimeout = setTimeout(() => {
@@ -613,9 +722,10 @@
                 document.getElementById('uploadStatus').innerHTML = "✅ Saved to Sheets";
                 
                 if (sheetsUrl && sheetsUrl.length > 10) {
-                    let safeAthlete = encodeURIComponent(athlete);
-                    let safeEvent = encodeURIComponent(event);
-                    let fetchUrl = `${sheetsUrl}?athlete=${safeAthlete}&event=${safeEvent}&time=${time}&splits=${splits}`;
+                    let safeAth = encodeURIComponent(athlete);
+                    let safeEvt = encodeURIComponent(event);
+                    let fetchUrl = `${sheetsUrl}?athlete=${safeAth}&event=${safeEvt}&time=${time}&splits=${splits}&power=${power}&momentum=${momentum}`;
+                    
                     fetch(fetchUrl).catch(e => console.log("Sync failed"));
                 }
             }, 5000);
@@ -623,128 +733,230 @@
 
         function discardRun() {
             clearTimeout(sheetUploadTimeout);
+            
             document.getElementById('btnDiscard').style.display = 'none';
             document.getElementById('uploadStatus').innerHTML = "🗑️ Run Discarded";
             
             if (lastPBRevertData) {
-                if (lastPBRevertData.oldScore) pbs[lastPBRevertData.athlete][lastPBRevertData.event] = lastPBRevertData.oldScore;
-                else delete pbs[lastPBRevertData.athlete][lastPBRevertData.event];
+                if (lastPBRevertData.oldScore) {
+                    pbs[lastPBRevertData.athlete][lastPBRevertData.event] = lastPBRevertData.oldScore;
+                } else {
+                    delete pbs[lastPBRevertData.athlete][lastPBRevertData.event];
+                }
                 
-                saveLocal('pbs', pbs);
+                saveLocal('pbs', pbs); 
                 updatePBDisplay();
             }
         }
 
-        // ==========================================
-        // 11. UI REFRESHERS
-        // ==========================================
         function updatePBDisplay() {
-            const athlete = document.getElementById('athleteSelect').value;
-            const event = document.getElementById('eventName').value || "General";
-            const jumpEvent = "Vertical Jump";
+            const ath = document.getElementById('athleteSelect').value;
+            const evt = document.getElementById('eventName').value || "General";
             
-            let sprintPB = "--";
-            if (athlete !== "Guest" && pbs[athlete] && pbs[athlete][event]) sprintPB = pbs[athlete][event];
+            if (ath !== "Guest" && pbs[ath] && pbs[ath][evt]) {
+                document.getElementById('currentPB').innerText = pbs[ath][evt] + "s";
+            } else {
+                document.getElementById('currentPB').innerText = "--";
+            }
             
-            let jumpPBVal = "--";
-            if (athlete !== "Guest" && pbs[athlete] && pbs[athlete][jumpEvent]) jumpPBVal = pbs[athlete][jumpEvent];
-            
-            document.getElementById('currentPB').innerText = sprintPB + (sprintPB !== "--" ? "s" : "");
-            document.getElementById('jumpPB').innerText = jumpPBVal + (jumpPBVal !== "--" ? "in" : "");
+            if (ath !== "Guest" && pbs[ath] && pbs[ath]["Vertical Jump"]) {
+                document.getElementById('jumpPB').innerText = pbs[ath]["Vertical Jump"] + "in";
+            } else {
+                document.getElementById('jumpPB').innerText = "--";
+            }
         }
-
+        
         function resetTimer() { 
             totalStartTime = null; 
             lapStartTime = null; 
             splitTimes = []; 
+            
             clearInterval(timerInterval); 
             
             document.getElementById('display').innerHTML = "0.000"; 
             document.getElementById('lastRunBox').style.display = "none"; 
-            if (timerMode === 'splits') document.getElementById('liveSplits').innerHTML = "Ready for Laps..."; 
             
-            disarmSprint();
+            if (timerMode === 'splits') {
+                document.getElementById('liveSplits').innerHTML = "Ready for Laps..."; 
+            }
+            
+            disarmSprint(); 
         }
 
         // ==========================================
         // 12. ROSTER & DATA MANAGEMENT
         // ==========================================
         function saveSheetsUrl() { 
-            sheetsUrl = document.getElementById('sheetsUrlInput').value.trim();
+            sheetsUrl = document.getElementById('sheetsUrlInput').value.trim(); 
             saveLocal('sheetsUrl', sheetsUrl); 
         }
 
         function addAthlete() { 
-            const newNameInput = document.getElementById('newName'); 
-            const nameVal = newNameInput.value.trim();
-            if (nameVal && !roster.includes(nameVal)) { 
-                roster.push(nameVal); 
+            const name = document.getElementById('newName').value.trim(); 
+            const weight = document.getElementById('newWeight').value.trim();
+            const height = document.getElementById('newHeight').value.trim();
+            const sport = document.getElementById('newSport').value.trim();
+
+            if (name) { 
+                if (!roster.includes(name)) {
+                    roster.push(name); 
+                }
+                
+                profiles[name] = { 
+                    weight: weight, 
+                    height: height, 
+                    sport: sport 
+                };
+                
                 saveLocal('roster', roster); 
-                newNameInput.value = ""; 
+                saveLocal('profiles', profiles);
+
+                document.getElementById('newName').value = ""; 
+                document.getElementById('newWeight').value = "";
+                document.getElementById('newHeight').value = "";
+                document.getElementById('newSport').value = "";
+                
                 renderRoster(); 
             } 
         }
         
         function deleteAthlete(index) { 
-            if (confirm("Delete athlete & all their PB data?")) { 
+            if (confirm("Delete athlete & all profile/PB data?")) { 
                 let name = roster[index];
                 roster.splice(index, 1); 
+                
+                if (profiles[name]) {
+                    delete profiles[name];
+                }
+                
+                if (pbs[name]) {
+                    delete pbs[name]; 
+                }
+                
                 saveLocal('roster', roster); 
-                if (pbs[name]) { delete pbs[name]; saveLocal('pbs', pbs); }
+                saveLocal('profiles', profiles);
+                saveLocal('pbs', pbs);
+                
                 renderRoster(); 
             } 
-        }
-
-        function deleteSinglePB(athlete, event) {
-            if (confirm(`Delete PB for ${athlete} - ${event}?`)) {
-                delete pbs[athlete][event];
-                if (Object.keys(pbs[athlete]).length === 0) delete pbs[athlete];
-                saveLocal('pbs', pbs);
-                renderPBs();
-                updatePBDisplay();
-            }
         }
         
         function renderRoster() { 
             const list = document.getElementById('rosterList');
-            if (roster.length === 0) list.innerHTML = "<div style='color:#666;'>No athletes.</div>";
-            else {
+            
+            if (roster.length === 0) { 
+                list.innerHTML = "<div style='color:#666;'>No athletes.</div>"; 
+            } else {
                 let html = "";
-                for (let i = 0; i < roster.length; i++) html += `<div class="roster-item"><span>${roster[i]}</span><button class="btn-del" onclick="deleteAthlete(${i})">X</button></div>`;
+                for (let i = 0; i < roster.length; i++) {
+                    let name = roster[i];
+                    let profStr = "";
+                    
+                    if (name !== "Guest" && profiles[name]) {
+                        if (profiles[name].weight) {
+                            profStr += `${profiles[name].weight}lbs `;
+                        }
+                        if (profiles[name].sport) {
+                            profStr += `| ${profiles[name].sport}`;
+                        }
+                    }
+                    
+                    html += `
+                    <div class="roster-item">
+                        <div>${name} <span class="profile-badge">${profStr}</span></div>
+                        <button class="btn-del" onclick="deleteAthlete(${i})">X</button>
+                    </div>`;
+                }
                 list.innerHTML = html;
+            }
+            
+            let optionsHtml = `<option value="Guest">Guest</option>`;
+            for (let j = 0; j < roster.length; j++) {
+                optionsHtml += `<option value="${roster[j]}">${roster[j]}</option>`;
             }
             
             const selects = document.querySelectorAll('.athlete-sync');
             for (let i = 0; i < selects.length; i++) {
-                let select = selects[i];
-                let currentVal = select.value; 
-                let optionsHtml = `<option value="Guest">Guest</option>`;
-                for (let j = 0; j < roster.length; j++) optionsHtml += `<option value="${roster[j]}">${roster[j]}</option>`;
-                select.innerHTML = optionsHtml; 
-                if (currentVal && roster.includes(currentVal)) select.value = currentVal;
-                else select.value = "Guest"; 
+                let s = selects[i];
+                let cur = s.value; 
+                s.innerHTML = optionsHtml; 
+                
+                if (cur && roster.includes(cur)) {
+                    s.value = cur;
+                } else {
+                    s.value = "Guest";
+                }
             }
             updatePBDisplay();
         }
-        
+
+        function deleteSinglePB(ath, evt) {
+            if (confirm(`Delete PB for ${ath} - ${evt}?`)) {
+                delete pbs[ath][evt]; 
+                
+                if (Object.keys(pbs[ath]).length === 0) {
+                    delete pbs[ath];
+                }
+                
+                saveLocal('pbs', pbs); 
+                renderPBs(); 
+                updatePBDisplay();
+            }
+        }
+
         function renderPBs() { 
             const list = document.getElementById('pbList');
-            if (Object.keys(pbs).length === 0) { list.innerHTML = "No PBs recorded yet."; return; }
+            
+            if (Object.keys(pbs).length === 0) { 
+                list.innerHTML = "No PBs recorded yet."; 
+                return; 
+            }
+            
             let html = "";
-            for (let athlete in pbs) { 
-                html += `<div style="margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;"><strong style="color:#00ff00;">${athlete}</strong>`; 
-                for (let event in pbs[athlete]) { 
-                    let unit = "s";
-                    if (event === "Vertical Jump") unit = "in";
-                    html += `<div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;"><span style="color:#aaa; font-size:0.9rem;">${event}: <span style="color:#fff; font-weight:bold;">${pbs[athlete][event]}${unit}</span></span><button class="btn-del" style="padding:4px 8px;" onclick="deleteSinglePB('${athlete}', '${event}')">X</button></div>`; 
-                } 
-                html += `</div>`; 
+            let athletes = Object.keys(pbs);
+            
+            for (let a = 0; a < athletes.length; a++) {
+                let ath = athletes[a];
+                html += `
+                <div style="margin-bottom:15px; border-bottom:1px solid #333; padding-bottom:10px;">
+                    <strong style="color:#00ff00;">${ath}</strong>`;
+                
+                let events = Object.keys(pbs[ath]);
+                for (let e = 0; e < events.length; e++) {
+                    let evt = events[e];
+                    let unit = "";
+                    if (evt === "Vertical Jump") {
+                        unit = "in";
+                    } else {
+                        unit = "s";
+                    }
+                    
+                    html += `
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+                        <span style="color:#aaa; font-size:0.9rem;">${evt}: <span style="color:#fff; font-weight:bold;">${pbs[ath][evt]}${unit}</span></span>
+                        <button class="btn-del" style="padding:4px 8px;" onclick="deleteSinglePB('${ath}', '${evt}')">X</button>
+                    </div>`;
+                }
+                html += `</div>`;
             }
             list.innerHTML = html;
         }
         
-        function clearPBs() { if (confirm("Delete all PBs?")) { pbs = {}; saveLocal('pbs', pbs); renderPBs(); updatePBDisplay(); } }
-        function factoryReset() { if (confirm("Wipe all data?")) { localStorage.clear(); location.reload(); } }
+        function clearPBs() { 
+            if (confirm("Delete all PBs?")) { 
+                pbs = {}; 
+                saveLocal('pbs', pbs); 
+                renderPBs(); 
+                updatePBDisplay(); 
+            } 
+        }
+        
+        function factoryReset() { 
+            if (confirm("Wipe all data?")) { 
+                localStorage.clear(); 
+                location.reload(); 
+            } 
+        }
     </script>
 </body>
 </html>
