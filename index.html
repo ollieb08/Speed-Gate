@@ -478,6 +478,11 @@
         // ==========================================
         // 8. MASTER TRIGGER LOGIC
         // ==========================================
+// Add these two variables right above the handleTrigger function
+        let shuttlePasses = 0;
+        let lastTriggerTime = 0;
+
+        // Replace your existing handleTrigger function with this one
         function handleTrigger(rawGateData) {
             // Clean out invisible bluetooth characters
             let gate = rawGateData.replace(/[\0\r\n]/g, '').trim();
@@ -488,13 +493,16 @@
                 return;
             }
 
+            // 1. THE START
             if (totalStartTime === null && gate === "GATE1") {
                 if (isSprintArmed === false) {
                     return; 
                 }
                 
                 totalStartTime = performance.now(); 
-                lapStartTime = totalStartTime; 
+                lapStartTime = totalStartTime;
+                lastTriggerTime = totalStartTime; // Track exact start moment
+                shuttlePasses = 0; // Reset the 5-10-5 counter
                 splitTimes = [];
                 
                 document.getElementById('display').classList.remove('armed');
@@ -525,26 +533,49 @@
                     }
                 }, 10);
             } 
+            
+            // 2. THE RUNNING LOGIC
             else if (totalStartTime !== null) {
                 let now = performance.now();
                 let totalTime = ((now - totalStartTime) / 1000).toFixed(3);
-                let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
+                let timeSinceLastTrigger = (now - lastTriggerTime) / 1000; // Time since beam was LAST broken
                 let isShuttle = (document.getElementById('eventName').value === "5-10-5 Shuttle");
 
                 if (timerMode === 'standard') {
-                    if (gate === "GATE2" || (isShuttle && gate === "GATE1")) {
-                        if (parseFloat(totalTime) > 1.5) {
+                    // Use timeSinceLastTrigger to prevent trailing legs from stopping the clock instantly
+                    if (timeSinceLastTrigger > 1.5) {
+                        
+                        if (gate === "GATE2") {
                             stopTimer(totalTime);
+                        } 
+                        
+                        // NEW 5-10-5 SHUTTLE LOGIC
+                        else if (isShuttle && gate === "GATE1") {
+                            shuttlePasses++;
+                            lastTriggerTime = now; // Reset the 1.5s lockout!
+                            
+                            if (shuttlePasses === 1) {
+                                // This is the Middle Pass. Just vibrate so the coach knows the beam tracked it.
+                                if ('vibrate' in navigator) {
+                                    navigator.vibrate(50);
+                                }
+                            } 
+                            else if (shuttlePasses >= 2) {
+                                // This is the Finish Pass. Stop the clock!
+                                stopTimer(totalTime);
+                            }
                         }
                     }
                 } 
                 else if (timerMode === 'splits' && gate === "GATE1") {
-                    if (parseFloat(lapTime) < 1.0) {
+                    if (timeSinceLastTrigger < 1.0) {
                         return; 
                     }
                     
+                    let lapTime = ((now - lapStartTime) / 1000).toFixed(3);
                     splitTimes.push(lapTime); 
                     lapStartTime = now;       
+                    lastTriggerTime = now; // Reset lockout for the next lap
                     
                     if ('vibrate' in navigator) {
                         navigator.vibrate([50, 50, 50]);
@@ -557,7 +588,6 @@
                 }
             }
         }
-
         // ==========================================
         // 9. PROCESSING & ADVANCED PHYSICS
         // ==========================================
