@@ -741,7 +741,7 @@
         // ==========================================
         // 10. GOOGLE SHEETS UPLOAD
         // ==========================================
-        function setupDelayedUpload(athlete, event, time, splits, power, momentum) {
+    function setupDelayedUpload(athlete, event, time, splits, power, momentum) {
             document.getElementById('btnDiscard').style.display = 'inline-block';
             document.getElementById('uploadStatus').innerHTML = "⏳ Uploading to Sheets in 5s...";
             
@@ -754,7 +754,12 @@
                 if (sheetsUrl && sheetsUrl.length > 10) {
                     let safeAth = encodeURIComponent(athlete);
                     let safeEvt = encodeURIComponent(event);
-                    let fetchUrl = `${sheetsUrl}?athlete=${safeAth}&event=${safeEvt}&time=${time}&splits=${splits}&power=${power}&momentum=${momentum}`;
+                    
+                    // NEW: Grab height and weight from the athlete's profile
+                    let weight = (athlete !== "Guest" && profiles[athlete] && profiles[athlete].weight) ? profiles[athlete].weight : "";
+                    let height = (athlete !== "Guest" && profiles[athlete] && profiles[athlete].height) ? profiles[athlete].height : "";
+                    
+                    let fetchUrl = `${sheetsUrl}?athlete=${safeAth}&event=${safeEvt}&time=${time}&splits=${splits}&power=${power}&momentum=${momentum}&weight=${weight}&height=${height}`;
                     
                     fetch(fetchUrl).catch(e => console.log("Sync failed"));
                 }
